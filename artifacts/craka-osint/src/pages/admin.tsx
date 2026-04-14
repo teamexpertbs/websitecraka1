@@ -175,6 +175,7 @@ function AdminDashboard() {
   const [grantCode, setGrantCode] = useState("");
   const [grantPlan, setGrantPlan] = useState("Basic");
   const [granting, setGranting] = useState(false);
+  const [showRecentExecutions, setShowRecentExecutions] = useState(false);
 
   useEffect(() => {
     if (token) fetchUsers();
@@ -509,11 +510,15 @@ function AdminDashboard() {
         </Card>
         
         <Card className="bg-card border-border overflow-hidden">
-          <CardHeader className="bg-black/40 border-b border-border">
+          <CardHeader className="bg-black/40 border-b border-border flex items-center justify-between gap-4">
             <CardTitle className="text-lg">Recent Executions</CardTitle>
+            <Button variant="outline" size="sm" onClick={() => setShowRecentExecutions(prev => !prev)} className="h-9">
+              {showRecentExecutions ? "Hide" : "Show"}
+            </Button>
           </CardHeader>
-          <Table>
-            <TableHeader>
+          {showRecentExecutions && (
+            <Table>
+              <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead>Timestamp</TableHead>
                 <TableHead>Vector</TableHead>
