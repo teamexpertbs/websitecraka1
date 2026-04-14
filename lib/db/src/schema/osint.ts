@@ -52,7 +52,7 @@ export const crakaUsers = pgTable("craka_users", {
   referredBy: text("referred_by"),
   isPremium: boolean("is_premium").notNull().default(false),
   premiumPlan: text("premium_plan"),
-  premiumExpiresAt: timestamp("premium_expires_at").nullable(),
+  premiumExpiresAt: timestamp("premium_expires_at"),
   creditsEarned: integer("credits_earned").notNull().default(0),
   totalReferrals: integer("total_referrals").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
