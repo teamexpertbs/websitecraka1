@@ -430,7 +430,7 @@ function AdminDashboard() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              💡 User apna referral code Premium page ya Refer &amp; Earn page pe dekh sakta hai.
+              💡 Premium ko 30 din ke liye grant kiya jayega. User page pe expiry date dekh sakta hai.
             </p>
           </CardContent>
         </Card>

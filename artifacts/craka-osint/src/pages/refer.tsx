@@ -18,6 +18,7 @@ interface UserData {
   referralCode: string;
   isPremium: boolean;
   premiumPlan: string | null;
+  premiumExpiresAt: string | null;
   creditsEarned: number;
   totalReferrals: number;
   referredBy: string | null;
@@ -118,9 +119,16 @@ export default function Refer() {
                 Tera Referral Dashboard
               </h2>
               {user?.isPremium && (
-                <span className="text-[10px] bg-yellow-400/10 border border-yellow-400/30 text-yellow-400 px-2 py-0.5 rounded-full font-bold uppercase">
-                  {user.premiumPlan || "Premium"} Member
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-[10px] bg-yellow-400/10 border border-yellow-400/30 text-yellow-400 px-2 py-0.5 rounded-full font-bold uppercase">
+                    {user.premiumPlan || "Premium"} Member
+                  </span>
+                  {user.premiumExpiresAt && (
+                    <span className="text-[10px] text-yellow-400/70 font-mono">
+                      Expires: {new Date(user.premiumExpiresAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
 
