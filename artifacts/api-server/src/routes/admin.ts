@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, osintApis, osintHistory, osintCache, crakaUsers } from "@workspace/db";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and, lt } from "drizzle-orm";
 
 const router = Router();
 
@@ -176,20 +176,26 @@ router.post("/admin/revoke-premium", adminAuth, async (req, res) => {
 });
 
 router.get("/admin/users", adminAuth, async (req, res) => {
-  await db.update(crakaUsers)
-    .set({ isPremium: false, premiumPlan: null, premiumExpiresAt: null })
-    .where(eq(crakaUsers.isPremium, true), sql`premium_expires_at < now()`);
+  try {
+    const now = new Date();
+    await db.update(crakaUsers)
+      .set({ isPremium: false, premiumPlan: null, premiumExpiresAt: null })
+      .where(and(eq(crakaUsers.isPremium, true), lt(crakaUsers.premiumExpiresAt, now)));
 
-  const users = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.createdAt)).limit(50);
-  res.json(users.map(u => ({
-    referralCode: u.referralCode,
-    isPremium: u.isPremium,
-    premiumPlan: u.premiumPlan,
-    premiumExpiresAt: u.premiumExpiresAt?.toISOString() ?? null,
-    totalReferrals: u.totalReferrals,
-    creditsEarned: u.creditsEarned,
-    createdAt: u.createdAt.toISOString(),
-  })));
+    const users = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.createdAt)).limit(100);
+    res.json(users.map(u => ({
+      referralCode: u.referralCode,
+      isPremium: u.isPremium,
+      premiumPlan: u.premiumPlan,
+      premiumExpiresAt: u.premiumExpiresAt?.toISOString() ?? null,
+      totalReferrals: u.totalReferrals,
+      creditsEarned: u.creditsEarned,
+      createdAt: u.createdAt.toISOString(),
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
 });
 
 export default router;
