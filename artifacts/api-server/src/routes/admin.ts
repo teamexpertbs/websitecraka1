@@ -154,16 +154,38 @@ router.post("/admin/grant-premium", adminAuth, async (req, res) => {
     res.status(404).json({ error: "User not found with that ID" });
     return;
   }
-  await db.update(crakaUsers).set({ isPremium: true, premiumPlan: plan }).where(eq(crakaUsers.referralCode, code));
-  res.json({ success: true, message: `Premium (${plan}) granted to user ${code}` });
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await db.update(crakaUsers).set({ isPremium: true, premiumPlan: plan, premiumExpiresAt: expiresAt }).where(eq(crakaUsers.referralCode, code));
+  res.json({ success: true, message: `Premium (${plan}) granted to user ${code} until ${expiresAt.toISOString()}` });
+});
+
+router.post("/admin/revoke-premium", adminAuth, async (req, res) => {
+  const { referralCode } = req.body as { referralCode: string };
+  if (!referralCode) {
+    res.status(400).json({ error: "referralCode required" });
+    return;
+  }
+  const code = referralCode.trim().toUpperCase();
+  const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
+  if (!user) {
+    res.status(404).json({ error: "User not found with that ID" });
+    return;
+  }
+  await db.update(crakaUsers).set({ isPremium: false, premiumPlan: null, premiumExpiresAt: null }).where(eq(crakaUsers.referralCode, code));
+  res.json({ success: true, message: `Premium revoked for user ${code}` });
 });
 
 router.get("/admin/users", adminAuth, async (req, res) => {
+  await db.update(crakaUsers)
+    .set({ isPremium: false, premiumPlan: null, premiumExpiresAt: null })
+    .where(eq(crakaUsers.isPremium, true), sql`premium_expires_at < now()`);
+
   const users = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.createdAt)).limit(50);
   res.json(users.map(u => ({
     referralCode: u.referralCode,
     isPremium: u.isPremium,
     premiumPlan: u.premiumPlan,
+    premiumExpiresAt: u.premiumExpiresAt?.toISOString() ?? null,
     totalReferrals: u.totalReferrals,
     creditsEarned: u.creditsEarned,
     createdAt: u.createdAt.toISOString(),

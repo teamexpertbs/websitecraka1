@@ -19,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Shield, Lock, Activity, Database, Trash2, Plus, Edit2, KeyRound, Crown, Check } from "lucide-react";
+import { Shield, Lock, Activity, Database, Trash2, Plus, Edit2, KeyRound, Crown, Check, Users } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function Admin() {
@@ -111,6 +111,38 @@ function AdminDashboard() {
   const createApiMutation = useAdminCreateApi();
   const { toast } = useToast();
 
+  const [users, setUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
+
+  const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const { token } = useAuthStore();
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    setUsersError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to load users");
+      }
+      setUsers(data);
+    } catch (error: any) {
+      setUsersError(error.message || "Unable to load users");
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const refreshUsers = () => {
+    fetchUsers();
+  };
+
   const handleClearCache = () => {
     clearCacheMutation.mutate(undefined, {
       onSuccess: () => {
@@ -143,8 +175,10 @@ function AdminDashboard() {
   const [grantCode, setGrantCode] = useState("");
   const [grantPlan, setGrantPlan] = useState("Basic");
   const [granting, setGranting] = useState(false);
-  const { token } = useAuthStore();
-  const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  useEffect(() => {
+    if (token) fetchUsers();
+  }, [token]);
 
   const handleGrantPremium = async () => {
     if (!grantCode.trim()) return;
@@ -162,8 +196,35 @@ function AdminDashboard() {
       if (res.ok) {
         toast({ title: "✅ Premium Granted!", description: data.message });
         setGrantCode("");
+        refreshUsers();
       } else {
         toast({ title: "Error", description: data.error || "Failed to grant premium", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Network error", variant: "destructive" });
+    } finally {
+      setGranting(false);
+    }
+  };
+
+  const handleRevokePremium = async (referralCode: string) => {
+    if (!confirm(`Revoke premium for ${referralCode}?`)) return;
+    setGranting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/revoke-premium`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ referralCode }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "✅ Premium Revoked", description: data.message });
+        refreshUsers();
+      } else {
+        toast({ title: "Error", description: data.error || "Failed to revoke premium", variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Network error", variant: "destructive" });
@@ -243,6 +304,71 @@ function AdminDashboard() {
             </Card>
           </div>
         )}
+
+        <Card className="bg-card border-border overflow-hidden">
+          <CardHeader className="bg-black/40 border-b border-border">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" />
+              Registered Users
+            </CardTitle>
+            <CardDescription className="text-muted-foreground text-sm">
+              All registered users, premium status, plan, expiry and controls.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead>Referral</TableHead>
+                  <TableHead>Premium</TableHead>
+                  <TableHead>Plan</TableHead>
+                  <TableHead>Expires</TableHead>
+                  <TableHead>Referrals</TableHead>
+                  <TableHead>Credits</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.length === 0 && !usersLoading ? (
+                  <TableRow className="border-border hover:bg-muted/30">
+                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">
+                      {usersError || "No users available."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  users.map((user) => (
+                    <TableRow key={user.referralCode} className="border-border hover:bg-muted/30">
+                      <TableCell className="font-mono text-xs">{user.referralCode}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={user.isPremium ? "border-emerald-500 text-emerald-300" : "border-zinc-600 text-muted-foreground"}
+                        >
+                          {user.isPremium ? "YES" : "NO"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{user.premiumPlan || "—"}</TableCell>
+                      <TableCell>{user.premiumExpiresAt ? new Date(user.premiumExpiresAt).toLocaleDateString() : "—"}</TableCell>
+                      <TableCell>{user.totalReferrals}</TableCell>
+                      <TableCell>{user.creditsEarned}</TableCell>
+                      <TableCell className="text-right space-x-2">
+                        {user.isPremium ? (
+                          <Button variant="outline" size="sm" onClick={() => handleRevokePremium(user.referralCode)} className="h-8">
+                            Revoke
+                          </Button>
+                        ) : (
+                          <Button variant="secondary" size="sm" onClick={() => { setGrantCode(user.referralCode); setGrantPlan("Basic"); }} className="h-8">
+                            Grant
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
 
         <Card className="bg-gradient-to-r from-yellow-400/5 to-yellow-400/10 border-yellow-400/30 overflow-hidden">
           <CardHeader className="bg-black/30 border-b border-yellow-400/20 pb-4">

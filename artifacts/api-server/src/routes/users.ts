@@ -59,12 +59,16 @@ router.post("/user/init", async (req, res) => {
         totalReferrals: 0,
       }).returning();
       user = inserted[0];
+    } else if (user.isPremium && user.premiumExpiresAt && user.premiumExpiresAt < new Date()) {
+      await db.update(crakaUsers).set({ isPremium: false, premiumPlan: null, premiumExpiresAt: null }).where(eq(crakaUsers.id, user.id));
+      user = { ...user, isPremium: false, premiumPlan: null, premiumExpiresAt: null };
     }
 
     res.json({
       referralCode: user.referralCode,
       isPremium: user.isPremium,
       premiumPlan: user.premiumPlan,
+      premiumExpiresAt: user.premiumExpiresAt?.toISOString() ?? null,
       creditsEarned: user.creditsEarned,
       totalReferrals: user.totalReferrals,
       referredBy: user.referredBy,
@@ -80,8 +84,13 @@ router.get("/user/me", async (req, res) => {
     const sessionId = req.query["sessionId"] as string;
     if (!sessionId) return res.status(400).json({ error: "sessionId required" });
 
-    const user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
+    let user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
     if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (user.isPremium && user.premiumExpiresAt && user.premiumExpiresAt < new Date()) {
+      await db.update(crakaUsers).set({ isPremium: false, premiumPlan: null, premiumExpiresAt: null }).where(eq(crakaUsers.id, user.id));
+      user = { ...user, isPremium: false, premiumPlan: null, premiumExpiresAt: null };
+    }
 
     const referrals = await db.select().from(crakaReferrals).where(eq(crakaReferrals.referrerCode, user.referralCode));
 
@@ -89,6 +98,7 @@ router.get("/user/me", async (req, res) => {
       referralCode: user.referralCode,
       isPremium: user.isPremium,
       premiumPlan: user.premiumPlan,
+      premiumExpiresAt: user.premiumExpiresAt?.toISOString() ?? null,
       creditsEarned: user.creditsEarned,
       totalReferrals: user.totalReferrals,
       referredBy: user.referredBy,
