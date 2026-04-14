@@ -17,7 +17,7 @@ export default function Tools() {
     )
   );
 
-  const categories = Array.from(new Set(apis.map(a => a.category)));
+  const categories = Array.from(new Set(apis.map(a => a.category))) as string[];
 
   return (
     <Layout>

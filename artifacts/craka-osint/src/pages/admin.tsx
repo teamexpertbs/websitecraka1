@@ -545,6 +545,7 @@ function AdminDashboard() {
               ))}
             </TableBody>
           </Table>
+          )}
         </Card>
       </div>
     </Layout>
