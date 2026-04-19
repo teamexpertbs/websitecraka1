@@ -1,0 +1,6 @@
+{
+  "title": "CraKa OSINT",
+  "description": "Quick OSINT search",
+  "searchUrl": "/?action=search",
+  "version": "1.0"
+}
