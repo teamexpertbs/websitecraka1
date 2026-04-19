@@ -121,8 +121,8 @@ export default function Premium() {
   useEffect(() => { initUser(); }, [initUser]);
 
   const buildMsg = (planName: string, price: string) => {
-    const idLine = userCode ? `\nMera User ID: *${userCode}*` : "";
-    return `Hi! CraKa OSINT *${planName} Plan (${price}/month)* lena chahta/chahti hoon.${idLine}\nPlease payment details batao.`;
+    const idLine = userCode ? ` My User ID: ${userCode}.` : "";
+    return `Hi! I want to subscribe to CraKa OSINT ${planName} Plan (${price}/month).${idLine} Please provide the payment details.`;
   };
 
   const handleWhatsApp = (planName: string, price: string) => {
