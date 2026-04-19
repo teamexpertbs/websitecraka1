@@ -1,5 +1,5 @@
 {
-  "id": "/",
+  "id": "https://websitecraka1-api-server.vercel.app/",
   "name": "CraKa OSINT Portal",
   "short_name": "CraKa",
   "description": "OSINT portal for the CraKa platform with admin controls, analytics, and reporting.",
@@ -18,7 +18,7 @@
   "related_applications": [
     {
       "platform": "webapp",
-      "url": "/"
+      "url": "https://websitecraka1-api-server.vercel.app/"
     }
   ],
   "icons": [
@@ -120,7 +120,7 @@
   ],
   "scope_extensions": [
     {
-      "origin": "https://websitecraka1.vercel.app"
+      "origin": "https://websitecraka1-api-server.vercel.app"
     }
   ],
   "edge_side_panel": {
