@@ -6,12 +6,14 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "orientation": "portrait-primary",
   "categories": ["utilities", "productivity"],
   "lang": "en",
   "dir": "ltr",
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
   "prefer_related_applications": false,
   "related_applications": [
     {
@@ -42,5 +44,48 @@
       "form_factor": "narrow",
       "label": "CraKa OSINT Portal - Mobile View"
     }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "Quick Search",
+      "short_name": "Search",
+      "description": "Perform a quick OSINT search",
+      "url": "/?action=search",
+      "icons": [{ "src": "/android/launchericon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Go to CraKa Dashboard",
+      "url": "/",
+      "icons": [{ "src": "/android/launchericon-96x96.png", "sizes": "96x96", "type": "image/png" }]
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+craka",
+      "url": "/?query=%s"
+    }
+  ],
+  "file_handlers": [],
+  "widgets": [],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "note_taking": {
+    "new_note_url": "/?action=note"
+  },
+  "scope_extensions": []
 }
