@@ -79,13 +79,54 @@
       "url": "/?query=%s"
     }
   ],
-  "file_handlers": [],
-  "widgets": [],
+  "file_handlers": [
+    {
+      "action": "/",
+      "accept": {
+        "text/plain": [".txt"],
+        "application/json": [".json"],
+        "text/csv": [".csv"]
+      },
+      "icons": [{ "src": "/android/launchericon-96x96.png", "sizes": "96x96", "type": "image/png" }],
+      "launch_type": "single-client"
+    }
+  ],
+  "widgets": [
+    {
+      "name": "CraKa Quick Search",
+      "short_name": "CraKa",
+      "description": "Quick OSINT lookup from your home screen",
+      "tag": "craka-search-widget",
+      "ms_ac_template": "/widgets/template.json",
+      "data": "/widgets/data.json",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "/screenshots/narrow.png",
+          "sizes": "540x960",
+          "label": "CraKa widget preview"
+        }
+      ],
+      "icons": [
+        {
+          "src": "/android/launchericon-144x144.png",
+          "sizes": "144x144",
+          "type": "image/png"
+        }
+      ],
+      "auth": false,
+      "update": 86400
+    }
+  ],
+  "scope_extensions": [
+    {
+      "origin": "https://websitecraka1.vercel.app"
+    }
+  ],
   "edge_side_panel": {
     "preferred_width": 400
   },
   "note_taking": {
     "new_note_url": "/?action=note"
-  },
-  "scope_extensions": []
+  }
 }
