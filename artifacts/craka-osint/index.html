@@ -1,46 +1,90 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <meta name="theme-color" content="#0f172a" />
-    <link rel="manifest" href="/manifest.json" />
-    <title>CraKa OSINT Portal</title>
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="alternate icon" type="image/png" href="/android/launchericon-192x192.png" />
-    <!-- iOS PWA Support -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="CraKa" />
-    <link rel="apple-touch-icon" href="/ios/180.png" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/ios/152.png" />
-    <link rel="apple-touch-icon" sizes="167x167" href="/ios/167.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/ios/180.png" />
-    <!-- Windows PWA Support -->
-    <meta name="msapplication-TileImage" content="/windows/Square150x150Logo.scale-200.png" />
-    <meta name="msapplication-TileColor" content="#0f172a" />
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Craka | Professional Web Services</title>
+    
+    <!-- SEO Tags -->
+    <meta name="description" content="Best professional website services by Team Expert. High quality and fast delivery.">
+    <meta name="keywords" content="Website, Development, Team Expert, Craka">
+    <meta name="author" content="Team Expert">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#007bff">
+
+    <!-- CSS Link -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Google Fonts (Optional but recommended for professional look) -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Header Section -->
+    <header>
+        <nav class="navbar">
+            <div class="logo">Website<span>Craka</span></div>
+            <ul class="nav-links">
+                <li><a href="#home">Home</a></li>
+                <li><a href="#services">Services</a></li>
+                <li><a href="#about">About</a></li>
+                <li><a href="#contact" class="btn-contact">Contact Us</a></li>
+            </ul>
+            <div class="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero">
+        <div class="hero-content">
+            <h1>Create Your <span class="highlight">Digital Presence</span></h1>
+            <p>We build high-performance websites that help your business grow faster.</p>
+            <a href="#services" class="cta-button">Get Started</a>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section id="services" class="services">
+        <h2>Our Services</h2>
+        <div class="services-container">
+            <div class="service-card">
+                <h3>Web Design</h3>
+                <p>Modern and clean designs that attract more customers.</p>
+            </div>
+            <div class="service-card">
+                <h3>Web Development</h3>
+                <p>Fast, secure, and scalable websites built with latest tech.</p>
+            </div>
+            <div class="service-card">
+                <h3>App Conversion</h3>
+                <p>Convert your existing website into a professional Android APK.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <p>&copy; 2024 Website Craka - Created by Team Expert</p>
+    </footer>
+
+    <!-- JS Link -->
+    <script src="script.js"></script>
+
     <!-- PWA Service Worker Registration -->
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js')
-            .then(function(registration) {
-              console.log('SW registered:', registration.scope);
-            })
-            .catch(function(err) {
-              console.log('SW registration failed:', err);
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('SW Registered!'))
+                .catch(err => console.log('SW Registration Failed', err));
             });
-        });
-      }
+        }
     </script>
-  </body>
+</body>
 </html>
