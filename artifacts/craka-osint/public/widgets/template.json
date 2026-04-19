@@ -1,0 +1,33 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "CraKa OSINT",
+      "weight": "Bolder",
+      "size": "Medium",
+      "color": "Accent"
+    },
+    {
+      "type": "TextBlock",
+      "text": "Quick OSINT Lookup",
+      "wrap": true,
+      "size": "Small"
+    },
+    {
+      "type": "Input.Text",
+      "id": "query",
+      "placeholder": "Enter search query...",
+      "maxLength": 100
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.OpenUrl",
+      "title": "Search",
+      "url": "/?action=search"
+    }
+  ]
+}
