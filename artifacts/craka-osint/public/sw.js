@@ -1,4 +1,4 @@
-const CACHE_NAME = 'craka-osint-v2';
+const CACHE_NAME = 'craka-osint-v3';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -10,16 +10,18 @@ const urlsToCache = [
   '/android/launchericon-144x144.png',
   '/android/launchericon-192x192.png',
   '/android/launchericon-512x512.png',
-  '/ios/180.png',
   '/ios/152.png',
   '/ios/167.png',
+  '/ios/180.png',
+  '/ios/192.png',
+  '/ios/512.png',
   '/windows/Square150x150Logo.scale-200.png'
 ];
 
 self.addEventListener('install', function(event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
-      console.log('Opened cache');
+      console.log('CraKa SW: Cache opened');
       return cache.addAll(urlsToCache);
     })
   );
