@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/:match*",
-      "destination": "https://websitesuuny.onrender.com/api/:match*"
+      "destination": "https://websitecraka1.onrender.com/api/:match*"
     },
     {
       "source": "/(.*)",
