@@ -1,0 +1,16 @@
+{
+  "buildCommand": "cd artifacts/craka-osint && npx vite build --config vite.config.ts",
+  "installCommand": "npm install -g pnpm && pnpm install --no-frozen-lockfile",
+  "outputDirectory": "artifacts/craka-osint/dist/public",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/:match*",
+      "destination": "https://websitesuuny.onrender.com/api/:match*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
