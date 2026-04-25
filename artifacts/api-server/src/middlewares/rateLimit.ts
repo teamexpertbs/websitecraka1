@@ -1,14 +1,14 @@
 import rateLimit from "express-rate-limit";
 import RedisStore from "rate-limit-redis";
-import redis from "redis";
+import { createClient, type RedisClientType } from "redis";
 
 // Create Redis client (optional - falls back to in-memory if redis not available)
-let redisClient: redis.RedisClientType | null = null;
+let redisClient: RedisClientType | null = null;
 let store: rateLimit.Store;
 
 const createRedisClient = async () => {
   try {
-    redisClient = redis.createClient({ url: process.env.REDIS_URL });
+    redisClient = createClient({ url: process.env.REDIS_URL }) as RedisClientType;
     await redisClient.connect();
     store = new RedisStore({
       client: redisClient,
