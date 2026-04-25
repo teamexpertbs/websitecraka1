@@ -1,37 +1,41 @@
 import { Router } from "express";
 import { db, osintApis, osintHistory, osintCache, crakaUsers } from "@workspace/db";
-import { eq, sql, desc, and, lt } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
+import { generateToken, adminAuthMiddleware, refreshTokenHandler } from "../lib/jwt";
+import { AdminLoginSchema, AdminCreateApiSchema, AdminGrantPremiumSchema, formatValidationError } from "../lib/validation";
 
 const router = Router();
 
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
 const ADMIN_PASS = process.env.ADMIN_PASS || "craka@admin123";
 
-function adminAuth(req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) {
-  const auth = req.headers["authorization"];
-  if (!auth || !auth.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  const token = auth.slice(7);
-  if (token !== Buffer.from(`${ADMIN_USER}:${ADMIN_PASS}`).toString("base64")) {
-    res.status(401).json({ error: "Invalid token" });
-    return;
-  }
-  next();
-}
-
 router.post("/admin/login", async (req, res) => {
-  const { username, password } = req.body as { username: string; password: string };
+  const validation = AdminLoginSchema.safeParse(req.body);
+  if (!validation.success) {
+    res.status(400).json(formatValidationError(validation.error));
+    return;
+  }
+
+  const { username, password } = validation.data;
+  const ADMIN_USER = process.env.ADMIN_USER || "admin";
+  const ADMIN_PASS = process.env.ADMIN_PASS || "craka@admin123";
+
   if (username === ADMIN_USER && password === ADMIN_PASS) {
-    const token = Buffer.from(`${ADMIN_USER}:${ADMIN_PASS}`).toString("base64");
-    res.json({ success: true, token, message: "Login successful" });
+    const token = generateToken(username);
+    res.json({ 
+      success: true, 
+      token, 
+      expiresIn: "8h",
+      message: "Login successful" 
+    });
   } else {
     res.status(401).json({ success: false, message: "Invalid credentials" });
   }
 });
 
-router.get("/admin/apis", adminAuth, async (req, res) => {
+router.post("/admin/refresh-token", refreshTokenHandler);
+
+router.get("/admin/apis", adminAuthMiddleware, async (req, res) => {
   const apis = await db.select().from(osintApis).orderBy(osintApis.id);
   res.json(apis.map(a => ({
     id: a.id, slug: a.slug, name: a.name, url: a.url, command: a.command,
@@ -40,8 +44,14 @@ router.get("/admin/apis", adminAuth, async (req, res) => {
   })));
 });
 
-router.post("/admin/apis", adminAuth, async (req, res) => {
-  const { slug, name, url, command, example, pattern, category, credits, isActive } = req.body;
+router.post("/admin/apis", adminAuthMiddleware, async (req, res) => {
+  const validation = AdminCreateApiSchema.safeParse(req.body);
+  if (!validation.success) {
+    res.status(400).json(formatValidationError(validation.error));
+    return;
+  }
+
+  const { slug, name, url, command, example, pattern, category, credits, isActive } = validation.data;
   const [created] = await db.insert(osintApis).values({
     slug, name, url, command, example, pattern: pattern || null,
     category: category || "Miscellaneous", credits: credits ?? 1, isActive: isActive ?? true,
@@ -53,8 +63,8 @@ router.post("/admin/apis", adminAuth, async (req, res) => {
   });
 });
 
-router.put("/admin/apis/:slug", adminAuth, async (req, res) => {
-  const { slug } = req.params;
+router.put("/admin/apis/:slug", adminAuthMiddleware, async (req, res) => {
+  const slug = String(req.params.slug);
   const { name, url, command, example, pattern, category, credits, isActive } = req.body;
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
@@ -78,13 +88,13 @@ router.put("/admin/apis/:slug", adminAuth, async (req, res) => {
   });
 });
 
-router.delete("/admin/apis/:slug", adminAuth, async (req, res) => {
-  const { slug } = req.params;
+router.delete("/admin/apis/:slug", adminAuthMiddleware, async (req, res) => {
+  const slug = String(req.params.slug);
   await db.delete(osintApis).where(eq(osintApis.slug, slug));
   res.json({ success: true, message: "API deleted" });
 });
 
-router.get("/admin/history", adminAuth, async (req, res) => {
+router.get("/admin/history", adminAuthMiddleware, async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   const page = Math.max(Number(req.query.page) || 1, 1);
   const offset = (page - 1) * limit;
@@ -102,12 +112,12 @@ router.get("/admin/history", adminAuth, async (req, res) => {
   });
 });
 
-router.post("/admin/cache/clear", adminAuth, async (req, res) => {
+router.post("/admin/cache/clear", adminAuthMiddleware, async (req, res) => {
   await db.delete(osintCache);
   res.json({ success: true, message: "Cache cleared" });
 });
 
-router.get("/admin/stats", adminAuth, async (req, res) => {
+router.get("/admin/stats", adminAuthMiddleware, async (req, res) => {
   const [totalResult, successResult, failedResult, activeApisResult, totalApisResult, cacheResult] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(osintHistory),
     db.select({ count: sql<number>`count(*)` }).from(osintHistory).where(eq(osintHistory.success, true)),
@@ -142,60 +152,37 @@ router.get("/admin/stats", adminAuth, async (req, res) => {
   });
 });
 
-router.post("/admin/grant-premium", adminAuth, async (req, res) => {
-  const { referralCode, plan } = req.body as { referralCode: string; plan: string };
-  if (!referralCode || !plan) {
-    res.status(400).json({ error: "referralCode and plan required" });
+router.post("/admin/grant-premium", adminAuthMiddleware, async (req, res) => {
+  const validation = AdminGrantPremiumSchema.safeParse({ 
+    code: req.body.referralCode || req.body.code,
+    plan: req.body.plan 
+  });
+  if (!validation.success) {
+    res.status(400).json(formatValidationError(validation.error));
     return;
   }
-  const code = referralCode.trim().toUpperCase();
+
+  const code = validation.data.code.trim().toUpperCase();
+  const plan = validation.data.plan;
   const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
   if (!user) {
     res.status(404).json({ error: "User not found with that ID" });
     return;
   }
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  await db.update(crakaUsers).set({ isPremium: true, premiumPlan: plan, premiumExpiresAt: expiresAt }).where(eq(crakaUsers.referralCode, code));
-  res.json({ success: true, message: `Premium (${plan}) granted to user ${code} until ${expiresAt.toISOString()}` });
+  await db.update(crakaUsers).set({ isPremium: true, premiumPlan: plan }).where(eq(crakaUsers.referralCode, code));
+  res.json({ success: true, message: `Premium (${plan}) granted to user ${code}` });
 });
 
-router.post("/admin/revoke-premium", adminAuth, async (req, res) => {
-  const { referralCode } = req.body as { referralCode: string };
-  if (!referralCode) {
-    res.status(400).json({ error: "referralCode required" });
-    return;
-  }
-  const code = referralCode.trim().toUpperCase();
-  const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
-  if (!user) {
-    res.status(404).json({ error: "User not found with that ID" });
-    return;
-  }
-  await db.update(crakaUsers).set({ isPremium: false, premiumPlan: null, premiumExpiresAt: null }).where(eq(crakaUsers.referralCode, code));
-  res.json({ success: true, message: `Premium revoked for user ${code}` });
-});
-
-router.get("/admin/users", adminAuth, async (req, res) => {
-  try {
-    const now = new Date();
-    await db.update(crakaUsers)
-      .set({ isPremium: false, premiumPlan: null, premiumExpiresAt: null })
-      .where(and(eq(crakaUsers.isPremium, true), lt(crakaUsers.premiumExpiresAt, now)));
-
-    const users = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.createdAt)).limit(100);
-    res.json(users.map(u => ({
-      referralCode: u.referralCode,
-      isPremium: u.isPremium,
-      premiumPlan: u.premiumPlan,
-      premiumExpiresAt: u.premiumExpiresAt?.toISOString() ?? null,
-      totalReferrals: u.totalReferrals,
-      creditsEarned: u.creditsEarned,
-      createdAt: u.createdAt.toISOString(),
-    })));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch users" });
-  }
+router.get("/admin/users", adminAuthMiddleware, async (req, res) => {
+  const users = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.createdAt)).limit(50);
+  res.json(users.map(u => ({
+    referralCode: u.referralCode,
+    isPremium: u.isPremium,
+    premiumPlan: u.premiumPlan,
+    totalReferrals: u.totalReferrals,
+    creditsEarned: u.creditsEarned,
+    createdAt: u.createdAt.toISOString(),
+  })));
 });
 
 export default router;
