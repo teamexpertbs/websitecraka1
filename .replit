@@ -33,7 +33,7 @@ args = "PORT=24042 BASE_PATH=/ pnpm --filter @workspace/craka-osint run dev & PO
 waitForPort = 24042
 
 [agent]
-stack = "PNPM_WORKSPACE"
+stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
 
 [postMerge]
