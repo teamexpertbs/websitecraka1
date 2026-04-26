@@ -10,10 +10,10 @@ const DEVELOPER_CREDIT = "@DM_CRAKA_OWNER_BOT";
 const CACHE_TTL_MINUTES = 30;
 
 const DEFAULT_APIS = [
-  { slug: "phone",    name: "Phone Lookup",    url: "https://darkietech.site/numapi.php?action=api&key=SUNNY&number={query}",          command: "/phone",    example: "9876543210",       pattern: "^[6-9]\\d{9}$",                                                               category: "Phone",    credits: 1 },
+  { slug: "phone",    name: "Phone Lookup",    url: "https://exploitsindia.site/api/number.php?exploits={query}",                      command: "/phone",    example: "9876543210",       pattern: "^[6-9]\\d{9}$",                                                               category: "Phone",    credits: 1 },
   { slug: "phone2",   name: "Phone Info 2",    url: "https://api.veriphone.io/v2/verify?phone={query}&key=demo",                       command: "/phone2",   example: "+919876543210",    pattern: null,                                                                           category: "Phone",    credits: 1 },
-  { slug: "aadhaar",  name: "Aadhaar Lookup",  url: "https://darkietech.site/numapi.php?action=api&key=SUNNY&aadhar={query}",          command: "/aadhaar",  example: "882838027159",     pattern: "^\\d{12}$",                                                                    category: "Identity", credits: 1 },
-  { slug: "family",   name: "Family Info",     url: "https://darkietech.site/numapi.php?action=api&key=SUNNY&aadhar_family={query}",   command: "/family",   example: "882838027159",     pattern: "^\\d{10,12}$",                                                                 category: "Identity", credits: 1 },
+  { slug: "aadhaar",  name: "Aadhaar Lookup",  url: "https://exploitsindia.site/api/aadhar.php?exploits={query}",                      command: "/aadhaar",  example: "882838027159",     pattern: "^\\d{12}$",                                                                    category: "Identity", credits: 1 },
+  { slug: "family",   name: "Family Info",     url: "https://exploitsindia.site/api/family.php?exploits={query}",                      command: "/family",   example: "882838027159",     pattern: "^\\d{12}$",                                                                    category: "Identity", credits: 1 },
   { slug: "vehicle",  name: "Vehicle RC",      url: "https://vehicle-info-api-abhi.vercel.app/?rc_number={query}",                    command: "/vehicle",  example: "KA04EQ4521",       pattern: "^([A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{1,4}|[0-9]{2}BH[0-9]{4}[A-Z]{1,2})$",  category: "Vehicle",  credits: 1 },
   { slug: "pan",      name: "PAN Card",        url: "https://pan.amorinthz.workers.dev/?key=AMORINTH&pan={query}",                    command: "/pan",      example: "ABCDE1234F",       pattern: "^[A-Z]{5}\\d{4}[A-Z]$",                                                       category: "Identity", credits: 1 },
   { slug: "ifsc",     name: "IFSC / Bank",     url: "https://ifsc.razorpay.com/{query}",                                              command: "/ifsc",     example: "SBIN0000001",      pattern: "^[A-Z]{4}0[A-Z0-9]{6}$",                                                      category: "Banking",  credits: 1 },
@@ -71,17 +71,26 @@ function fetchUrl(url: string): Promise<{ data: Record<string, unknown>; statusC
 }
 
 function injectDeveloperCredit(data: Record<string, unknown>): Record<string, unknown> {
-  const knownHandles = ["@Cyb3rS0ldier", "Cyb3rS0ldier", "@darkietech", "darkietech", "@abbas", "@AMORINTH", "amorinthz", "@exploitsindia", "exploitsindia"];
-  
-  function processValue(val: unknown): unknown {
-    if (typeof val === "string") {
-      for (const handle of knownHandles) {
-        if (val.toLowerCase().includes(handle.toLowerCase())) {
-          return DEVELOPER_CREDIT;
-        }
-      }
-      return val;
+  const knownHandles = [
+    "@Cyb3rS0ldier", "Cyb3rS0ldier",
+    "@darkietech", "darkietech",
+    "@abbas",
+    "@AMORINTH", "amorinthz", "AMORINTH",
+    "@exploitsindia", "exploitsindia",
+    "Anish Exploits", "Anish",
+  ];
+
+  function replaceHandlesInString(s: string): string {
+    let out = s;
+    for (const handle of knownHandles) {
+      const re = new RegExp(handle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+      out = out.replace(re, DEVELOPER_CREDIT);
     }
+    return out;
+  }
+
+  function processValue(val: unknown): unknown {
+    if (typeof val === "string") return replaceHandlesInString(val);
     if (Array.isArray(val)) return val.map(processValue);
     if (val && typeof val === "object") return processObject(val as Record<string, unknown>);
     return val;

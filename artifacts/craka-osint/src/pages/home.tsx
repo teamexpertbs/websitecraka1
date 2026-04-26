@@ -114,7 +114,10 @@ function ResultViewer({
 
   const display = rows.filter(r => r.key !== "Developer" && r.value !== "—");
 
-  const report = toTextReport(apiName, query, display);
+  const rawTextRow = display.length === 1 && display[0].key === "raw" ? display[0] : null;
+  const rawText = rawTextRow ? rawTextRow.value : null;
+
+  const report = rawText ? rawText : toTextReport(apiName, query, display);
 
   const handleCopy = (key: string, value: string) => {
     navigator.clipboard.writeText(value);
@@ -210,6 +213,10 @@ function ResultViewer({
       <div className="px-3 pb-4 space-y-1.5 max-h-[60vh] overflow-y-auto">
         {display.length === 0 ? (
           <div className="text-muted-foreground text-sm py-4 text-center">No data returned.</div>
+        ) : rawText ? (
+          <div className="rounded-md bg-black/40 border border-border/30 p-4">
+            <pre className="text-sm text-foreground whitespace-pre-wrap break-words font-mono leading-relaxed">{rawText}</pre>
+          </div>
         ) : display.map((row) => {
           const label = showHindi ? hindiLabel(row.key) : row.key.replace(/_/g, " ");
           const val = showHindi ? hindiValue(row.value) : row.value;
