@@ -1,0 +1,41 @@
+2026-04-26T08:13:18.676438365Z ==> Cloning from https://github.com/teamexpertbs/websitecraka1
+2026-04-26T08:13:19.876281252Z ==> Checking out commit 9a79ee712f17c6a0c678e233dce54be6b58880ae in branch main
+2026-04-26T08:13:20.712925237Z ==> Using Node.js version 24.14.1 (default)
+2026-04-26T08:13:20.736404354Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-04-26T08:13:22.627107248Z ==> Running build command 'pnpm install --frozen-lockfile; pnpm run build'...
+2026-04-26T08:13:30.411155401Z 
+2026-04-26T08:13:30.411180351Z > workspace@0.0.0 build /opt/render/project/src
+2026-04-26T08:13:30.411184742Z > pnpm run typecheck && pnpm -r --if-present run build
+2026-04-26T08:13:30.411187372Z 
+2026-04-26T08:13:30.695180328Z 
+2026-04-26T08:13:30.695205369Z > workspace@0.0.0 typecheck /opt/render/project/src
+2026-04-26T08:13:30.695209679Z > pnpm run typecheck:libs && pnpm -r --filter "./artifacts/**" --filter "./scripts" --if-present run typecheck
+2026-04-26T08:13:30.695213459Z 
+2026-04-26T08:13:30.981032882Z 
+2026-04-26T08:13:30.981054773Z > workspace@0.0.0 typecheck:libs /opt/render/project/src
+2026-04-26T08:13:30.981058163Z > tsc --build
+2026-04-26T08:13:30.981060823Z 
+2026-04-26T08:13:55.769242627Z ==> Uploading build...
+2026-04-26T08:14:05.339583271Z ==> Uploaded in 4.8s. Compression took 4.7s
+2026-04-26T08:14:05.376562186Z ==> Build successful 🎉
+2026-04-26T08:14:10.819735568Z ==> Deploying...
+2026-04-26T08:14:11.033824674Z ==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+2026-04-26T08:14:30.803455697Z ==> Running 'cd artifacts/api-server && pnpm run start'
+2026-04-26T08:14:34.606998622Z 
+2026-04-26T08:14:34.607027783Z > @workspace/api-server@0.0.0 start /opt/render/project/src/artifacts/api-server
+2026-04-26T08:14:34.607034274Z > node --enable-source-maps ./dist/index.mjs
+2026-04-26T08:14:34.607037794Z 
+2026-04-26T08:14:37.497568054Z /opt/render/project/src/lib/db/src/index.ts:10
+2026-04-26T08:14:37.497608816Z   throw new Error(
+2026-04-26T08:14:37.497613356Z         ^
+2026-04-26T08:14:37.497616167Z 
+2026-04-26T08:14:37.497619927Z Error: DATABASE_URL must be set. Did you forget to provision a database?
+2026-04-26T08:14:37.497623187Z     at <anonymous> (/opt/render/project/src/lib/db/src/index.ts:10:9)
+2026-04-26T08:14:37.497625927Z     at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+2026-04-26T08:14:37.497629367Z     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:661:26)
+2026-04-26T08:14:37.497632597Z     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+2026-04-26T08:14:37.497635397Z 
+2026-04-26T08:14:37.497638388Z Node.js v24.14.1
+2026-04-26T08:14:37.699944174Z  ELIFECYCLE  Command failed with exit code 1.
+2026-04-26T08:14:39.234356769Z ==> Exited with status 1
+2026-04-26T08:14:39.239666598Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
