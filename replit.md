@@ -31,9 +31,20 @@ pnpm workspace monorepo using TypeScript. CraKa OSINT Portal — a dark-themed i
 - `artifacts/craka-osint/` — React + Vite frontend (dark terminal UI)
   - Pages: Terminal (home), Logs, Stats, Tools, Admin Panel
   - Auth state: `src/lib/auth.ts` (zustand + setAuthTokenGetter)
+  - Dev server proxies `/api/*` to `http://localhost:8080`
 - `artifacts/api-server/` — Express API backend
   - `src/routes/osint.ts` — OSINT lookup, history, stats, APIs list
-  - `src/routes/admin.ts` — Admin auth, CRUD for APIs, cache clear
+  - `src/routes/admin.ts` — Admin auth, CRUD for APIs, cache clear, grant/revoke premium
+  - In production (`NODE_ENV=production`) it also serves the built frontend from `artifacts/craka-osint/dist/public` and falls back to `index.html` for SPA routes
+
+## Deployment (Render single-service)
+
+`render.yaml` defines one web service that builds both packages and serves them together:
+
+- Build: `pnpm install` → build frontend → build api-server (esbuild bundle)
+- Start: `node dist/index.mjs` from `artifacts/api-server/`
+- Health check: `/api/healthz`
+- Required env vars on Render: `NEON_DATABASE_URL` (or `DATABASE_URL`), `ADMIN_USER`, `ADMIN_PASS`, `JWT_SECRET`
 - `lib/db/src/schema/osint.ts` — DB schema: osint_apis, osint_history, osint_cache
 
 ## Features

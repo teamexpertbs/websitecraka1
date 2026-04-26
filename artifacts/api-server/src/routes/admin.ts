@@ -173,6 +173,21 @@ router.post("/admin/grant-premium", adminAuthMiddleware, async (req, res) => {
   res.json({ success: true, message: `Premium (${plan}) granted to user ${code}` });
 });
 
+router.post("/admin/revoke-premium", adminAuthMiddleware, async (req, res) => {
+  const code = String(req.body?.referralCode || req.body?.code || "").trim().toUpperCase();
+  if (!code) {
+    res.status(400).json({ error: "referralCode is required" });
+    return;
+  }
+  const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
+  if (!user) {
+    res.status(404).json({ error: "User not found with that ID" });
+    return;
+  }
+  await db.update(crakaUsers).set({ isPremium: false, premiumPlan: null }).where(eq(crakaUsers.referralCode, code));
+  res.json({ success: true, message: `Premium revoked for user ${code}` });
+});
+
 router.get("/admin/users", adminAuthMiddleware, async (req, res) => {
   const users = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.createdAt)).limit(50);
   res.json(users.map(u => ({
