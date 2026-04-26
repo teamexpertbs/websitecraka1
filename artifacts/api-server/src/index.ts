@@ -1,5 +1,23 @@
-import app from "./app";
-import { logger } from "./lib/logger";
+import path from "node:path";
+import { existsSync } from "node:fs";
+import dotenv from "dotenv";
+
+const envCandidates = [
+  process.env.ENV_FILE,
+  "/etc/secrets/.env",
+  path.resolve(process.cwd(), ".env"),
+  path.resolve(process.cwd(), "../../.env"),
+  path.resolve(process.cwd(), "../../../.env"),
+].filter((p): p is string => Boolean(p));
+
+for (const envPath of envCandidates) {
+  if (existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+  }
+}
+
+const { default: app } = await import("./app");
+const { logger } = await import("./lib/logger");
 
 const rawPort = process.env["PORT"];
 
