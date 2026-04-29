@@ -33,6 +33,7 @@ const PLANS = [
     name: "Basic",
     price: "₹99",
     period: "/month",
+    tokens: "49 Search Tokens",
     badge: null,
     color: "from-cyan-500/10 to-cyan-500/5",
     border: "border-cyan-500/30",
@@ -40,7 +41,6 @@ const PLANS = [
     glow: "shadow-[0_0_20px_rgba(6,182,212,0.1)]",
     btnClass: "from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white",
     features: [
-      "49 Search Tokens",
       "All 19 OSINT tools",
       "30 min result caching",
       "Export as TXT",
@@ -52,6 +52,7 @@ const PLANS = [
     name: "Pro",
     price: "₹199",
     period: "/month",
+    tokens: "99 Search Tokens",
     badge: "MOST POPULAR",
     color: "from-yellow-400/15 to-yellow-400/5",
     border: "border-yellow-400/50",
@@ -59,7 +60,6 @@ const PLANS = [
     glow: "shadow-[0_0_30px_rgba(250,204,21,0.2)]",
     btnClass: "from-yellow-500 to-yellow-400 hover:from-yellow-400 hover:to-yellow-300 text-black shadow-[0_0_20px_rgba(250,204,21,0.3)]",
     features: [
-      "99 Search Tokens",
       "All 19 OSINT tools",
       "Priority API (faster)",
       "Bulk search (up to 50)",
@@ -73,6 +73,7 @@ const PLANS = [
     name: "Elite",
     price: "₹499",
     period: "/month",
+    tokens: "Unlimited Tokens",
     badge: "UNLIMITED",
     color: "from-purple-500/15 to-purple-500/5",
     border: "border-purple-500/50",
@@ -80,7 +81,6 @@ const PLANS = [
     glow: "shadow-[0_0_30px_rgba(168,85,247,0.2)]",
     btnClass: "from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white",
     features: [
-      "Unlimited Search Tokens",
       "All tools + beta tools",
       "Dedicated API access",
       "Bulk search unlimited",
@@ -200,6 +200,9 @@ export default function Premium() {
                 <div className="flex items-end gap-1">
                   <span className="text-4xl font-black text-foreground">{plan.price}</span>
                   <span className="text-sm text-muted-foreground mb-1">{plan.period}</span>
+                </div>
+                <div className={`mt-2 text-sm font-black ${plan.accent} bg-black/20 inline-block px-3 py-1 rounded-full border border-current/20`}>
+                  {plan.tokens}
                 </div>
               </div>
 
