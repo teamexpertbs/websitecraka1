@@ -80,10 +80,10 @@ export default function Refer() {
   };
 
   const REWARDS = [
-    { referrals: 1, reward: "+5 Credits", icon: Gift, color: "text-cyan-400", bg: "bg-cyan-400/10 border-cyan-400/20" },
-    { referrals: 5, reward: "1 Week Basic Free", icon: Zap, color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/20" },
-    { referrals: 10, reward: "1 Month Basic Free", icon: Crown, color: "text-purple-400", bg: "bg-purple-400/10 border-purple-400/20" },
-    { referrals: 25, reward: "1 Month Pro Free", icon: Crown, color: "text-orange-400", bg: "bg-orange-400/10 border-orange-400/20" },
+    { referrals: 1, reward: "+2 Tokens", icon: Gift, color: "text-cyan-400", bg: "bg-cyan-400/10 border-cyan-400/20" },
+    { referrals: 20, reward: "1 Month Basic Free (₹99 Plan)", icon: Zap, color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/20" },
+    { referrals: 50, reward: "1 Month Pro Free", icon: Crown, color: "text-purple-400", bg: "bg-purple-400/10 border-purple-400/20" },
+    { referrals: 100, reward: "1 Month Elite Free", icon: Crown, color: "text-orange-400", bg: "bg-orange-400/10 border-orange-400/20" },
   ];
 
   return (
@@ -136,7 +136,7 @@ export default function Refer() {
               {[
                 { label: "Referrals Kiye", value: user?.totalReferrals ?? 0, color: "text-cyan-400" },
                 { label: "Credits Kamaye", value: user?.creditsEarned ?? 0, color: "text-yellow-400" },
-                { label: "Tumhara Rank", value: (user?.totalReferrals ?? 0) >= 25 ? "Pro" : (user?.totalReferrals ?? 0) >= 10 ? "Star" : (user?.totalReferrals ?? 0) >= 5 ? "Active" : "Naya", color: "text-purple-400" },
+                { label: "Tumhara Rank", value: (user?.totalReferrals ?? 0) >= 100 ? "Elite" : (user?.totalReferrals ?? 0) >= 50 ? "Pro" : (user?.totalReferrals ?? 0) >= 20 ? "Star" : "Naya", color: "text-purple-400" },
               ].map(({ label, value, color }) => (
                 <div key={label} className="bg-black/30 border border-border/50 rounded-xl p-4 text-center">
                   <div className={`text-2xl font-black ${color}`}>{value}</div>

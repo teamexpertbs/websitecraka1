@@ -43,16 +43,43 @@ router.post("/user/init", async (req, res): Promise<void> => {
         const referrer = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, usedReferralCode)).then(r => r[0]);
         if (referrer && referrer.sessionId !== sessionId) {
           referredBy = usedReferralCode;
+          
+          const newTotal = referrer.totalReferrals + 1;
+          
           await db.insert(crakaReferrals).values({
             referrerCode: usedReferralCode,
             referredSessionId: sessionId,
-            creditsAwarded: 10,
+            creditsAwarded: 2,
           });
+          
+          let updateData: any = {
+            totalReferrals: sql`${crakaUsers.totalReferrals} + 1`,
+            creditsEarned: sql`${crakaUsers.creditsEarned} + 2`,
+          };
+
+          // Milestone Premium Grants
+          if (newTotal === 20) {
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 30);
+            updateData.isPremium = true;
+            updateData.premiumPlan = "Basic";
+            updateData.premiumExpiresAt = expiresAt;
+          } else if (newTotal === 50) {
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 30);
+            updateData.isPremium = true;
+            updateData.premiumPlan = "Pro";
+            updateData.premiumExpiresAt = expiresAt;
+          } else if (newTotal === 100) {
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 30);
+            updateData.isPremium = true;
+            updateData.premiumPlan = "Elite";
+            updateData.premiumExpiresAt = expiresAt;
+          }
+
           await db.update(crakaUsers)
-            .set({
-              totalReferrals: sql`${crakaUsers.totalReferrals} + 1`,
-              creditsEarned: sql`${crakaUsers.creditsEarned} + 10`,
-            })
+            .set(updateData)
             .where(eq(crakaUsers.referralCode, usedReferralCode));
         }
       }

@@ -40,7 +40,7 @@ const PLANS = [
     glow: "shadow-[0_0_20px_rgba(6,182,212,0.1)]",
     btnClass: "from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white",
     features: [
-      "500 lookups / day",
+      "49 Search Tokens",
       "All 19 OSINT tools",
       "30 min result caching",
       "Export as TXT",
@@ -59,7 +59,7 @@ const PLANS = [
     glow: "shadow-[0_0_30px_rgba(250,204,21,0.2)]",
     btnClass: "from-yellow-500 to-yellow-400 hover:from-yellow-400 hover:to-yellow-300 text-black shadow-[0_0_20px_rgba(250,204,21,0.3)]",
     features: [
-      "2000 lookups / day",
+      "99 Search Tokens",
       "All 19 OSINT tools",
       "Priority API (faster)",
       "Bulk search (up to 50)",
@@ -80,7 +80,7 @@ const PLANS = [
     glow: "shadow-[0_0_30px_rgba(168,85,247,0.2)]",
     btnClass: "from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white",
     features: [
-      "Unlimited lookups",
+      "Unlimited Search Tokens",
       "All tools + beta tools",
       "Dedicated API access",
       "Bulk search unlimited",
