@@ -155,15 +155,19 @@ router.post("/osint/lookup", async (req, res) => {
     return;
   }
   
-  if (user[0].creditsEarned < apiRow.credits) {
+  const isUnlimited = user[0].isPremium && user[0].premiumPlan && user[0].premiumPlan.toLowerCase() === "elite";
+  
+  if (!isUnlimited && user[0].creditsEarned < apiRow.credits) {
     res.status(403).json({ error: "Not enough tokens to perform this search. Please purchase premium." });
     return;
   }
   
-  // Deduct tokens
-  await db.update(crakaUsers)
-    .set({ creditsEarned: sql`${crakaUsers.creditsEarned} - ${apiRow.credits}` })
-    .where(eq(crakaUsers.sessionId, sessionId));
+  if (!isUnlimited) {
+    // Deduct tokens
+    await db.update(crakaUsers)
+      .set({ creditsEarned: sql`${crakaUsers.creditsEarned} - ${apiRow.credits}` })
+      .where(eq(crakaUsers.sessionId, sessionId));
+  }
   
   if (["vehicle", "pan", "ifsc", "gstin"].includes(slug)) {
     query = query.toUpperCase().replace(/[\s\-]/g, "");
@@ -193,8 +197,10 @@ router.post("/osint/lookup", async (req, res) => {
 
     if (statusCode >= 400 || isEmpty || hasErrorKey) {
       await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
-      // Refund tokens
-      await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId));
+      if (!isUnlimited) {
+        // Refund tokens
+        await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId));
+      }
       res.json({ data: rawData || {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: `Search Failed or No Data (Tokens Refunded)` });
       return;
     }
@@ -207,8 +213,10 @@ router.post("/osint/lookup", async (req, res) => {
     res.json({ data, cached: false, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
   } catch (err) {
     await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
-    // Refund tokens on catch error
-    await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId));
+    if (!isUnlimited) {
+      // Refund tokens on catch error
+      await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId));
+    }
     res.json({ data: {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: "Network Error (Tokens Refunded)" });
   }
 });
