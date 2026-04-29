@@ -174,6 +174,7 @@ function AdminDashboard() {
 
   const [grantCode, setGrantCode] = useState("");
   const [grantPlan, setGrantPlan] = useState("Basic");
+  const [grantAmount, setGrantAmount] = useState("");
   const [granting, setGranting] = useState(false);
   const [showRecentExecutions, setShowRecentExecutions] = useState(false);
 
@@ -191,12 +192,13 @@ function AdminDashboard() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify({ referralCode: grantCode.trim().toUpperCase(), plan: grantPlan }),
+        body: JSON.stringify({ referralCode: grantCode.trim().toUpperCase(), plan: grantPlan, amount: grantAmount ? Number(grantAmount) : 0 }),
       });
       const data = await res.json();
       if (res.ok) {
         toast({ title: "✅ Premium Granted!", description: data.message });
         setGrantCode("");
+        setGrantAmount("");
         refreshUsers();
       } else {
         toast({ title: "Error", description: data.error || "Failed to grant premium", variant: "destructive" });
@@ -392,6 +394,19 @@ function AdminDashboard() {
                   onChange={e => setGrantCode(e.target.value.toUpperCase())}
                   placeholder="CRAKA-XXXXXX"
                   className="bg-black/50 border-yellow-400/30 font-mono uppercase focus-visible:ring-yellow-400/50"
+                  onKeyDown={e => e.key === "Enter" && handleGrantPremium()}
+                />
+              </div>
+              <div className="sm:w-28">
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">
+                  Amount Paid (₹)
+                </Label>
+                <Input
+                  type="number"
+                  value={grantAmount}
+                  onChange={e => setGrantAmount(e.target.value)}
+                  placeholder="₹"
+                  className="bg-black/50 border-yellow-400/30 font-mono focus-visible:ring-yellow-400/50"
                   onKeyDown={e => e.key === "Enter" && handleGrantPremium()}
                 />
               </div>

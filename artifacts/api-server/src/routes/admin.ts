@@ -155,7 +155,8 @@ router.get("/admin/stats", adminAuthMiddleware, async (req, res) => {
 router.post("/admin/grant-premium", adminAuthMiddleware, async (req, res) => {
   const validation = AdminGrantPremiumSchema.safeParse({ 
     code: req.body.referralCode || req.body.code,
-    plan: req.body.plan 
+    plan: req.body.plan,
+    amount: req.body.amount ? Number(req.body.amount) : undefined
   });
   if (!validation.success) {
     res.status(400).json(formatValidationError(validation.error));
@@ -164,13 +165,28 @@ router.post("/admin/grant-premium", adminAuthMiddleware, async (req, res) => {
 
   const code = validation.data.code.trim().toUpperCase();
   const plan = validation.data.plan;
+  const amount = validation.data.amount || 0;
+  
   const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
   if (!user) {
     res.status(404).json({ error: "User not found with that ID" });
     return;
   }
-  await db.update(crakaUsers).set({ isPremium: true, premiumPlan: plan }).where(eq(crakaUsers.referralCode, code));
-  res.json({ success: true, message: `Premium (${plan}) granted to user ${code}` });
+  
+  const tokensToAdd = Math.floor(amount / 2);
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 30); // 30 days from now
+
+  await db.update(crakaUsers)
+    .set({ 
+      isPremium: true, 
+      premiumPlan: plan,
+      premiumExpiresAt: expiresAt,
+      creditsEarned: sql`${crakaUsers.creditsEarned} + ${tokensToAdd}`
+    })
+    .where(eq(crakaUsers.referralCode, code));
+    
+  res.json({ success: true, message: `Premium (${plan}) granted to user ${code}. Added ${tokensToAdd} tokens.` });
 });
 
 router.post("/admin/revoke-premium", adminAuthMiddleware, async (req, res) => {

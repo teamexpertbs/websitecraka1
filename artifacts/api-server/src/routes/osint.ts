@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, osintApis, osintHistory, osintCache } from "@workspace/db";
+import { db, osintApis, osintHistory, osintCache, crakaUsers } from "@workspace/db";
 import { eq, sql, desc, and, gt } from "drizzle-orm";
 import https from "https";
 import http from "http";
@@ -124,10 +124,10 @@ router.get("/osint/apis", async (req, res) => {
 });
 
 router.post("/osint/lookup", async (req, res) => {
-  const { slug, query: rawQuery } = req.body as { slug: string; query: string };
+  const { slug, query: rawQuery, sessionId } = req.body as { slug: string; query: string; sessionId: string };
   
-  if (!slug || !rawQuery) {
-    res.status(400).json({ error: "Missing slug or query" });
+  if (!slug || !rawQuery || !sessionId) {
+    res.status(400).json({ error: "Missing slug, query, or sessionId" });
     return;
   }
   
@@ -147,6 +147,23 @@ router.post("/osint/lookup", async (req, res) => {
       return;
     }
   }
+
+  // Token Validation
+  const user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).limit(1);
+  if (!user[0]) {
+    res.status(401).json({ error: "User session not found. Please reload." });
+    return;
+  }
+  
+  if (user[0].creditsEarned < apiRow.credits) {
+    res.status(403).json({ error: "Not enough tokens to perform this search. Please purchase premium." });
+    return;
+  }
+  
+  // Deduct tokens
+  await db.update(crakaUsers)
+    .set({ creditsEarned: sql`${crakaUsers.creditsEarned} - ${apiRow.credits}` })
+    .where(eq(crakaUsers.sessionId, sessionId));
   
   if (["vehicle", "pan", "ifsc", "gstin"].includes(slug)) {
     query = query.toUpperCase().replace(/[\s\-]/g, "");
@@ -170,9 +187,15 @@ router.post("/osint/lookup", async (req, res) => {
   try {
     const { data: rawData, statusCode } = await fetchUrl(url);
     
-    if (statusCode >= 400) {
+    // Check if API failed or returned empty JSON object or empty string
+    const isEmpty = !rawData || (typeof rawData === 'object' && Object.keys(rawData).length === 0);
+    const hasErrorKey = rawData && typeof rawData === 'object' && ('error' in rawData || 'status' in rawData && (rawData as any).status === false);
+
+    if (statusCode >= 400 || isEmpty || hasErrorKey) {
       await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
-      res.json({ data: {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: `HTTP ${statusCode}` });
+      // Refund tokens
+      await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId));
+      res.json({ data: rawData || {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: `Search Failed or No Data (Tokens Refunded)` });
       return;
     }
     
@@ -184,7 +207,9 @@ router.post("/osint/lookup", async (req, res) => {
     res.json({ data, cached: false, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
   } catch (err) {
     await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
-    res.json({ data: {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: String(err) });
+    // Refund tokens on catch error
+    await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId));
+    res.json({ data: {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: "Network Error (Tokens Refunded)" });
   }
 });
 

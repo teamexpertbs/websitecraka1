@@ -54,7 +54,8 @@ export const AdminUpdateApiSchema = AdminCreateApiSchema.partial();
 
 export const AdminGrantPremiumSchema = z.object({
   code: z.string().min(1, "referral code required"),
-  plan: z.enum(["basic", "standard", "premium"]),
+  plan: z.enum(["basic", "standard", "premium", "Basic", "Pro", "Elite"]),
+  amount: z.number().min(0).optional(),
 });
 
 export const AdminCacheClearSchema = z.object({

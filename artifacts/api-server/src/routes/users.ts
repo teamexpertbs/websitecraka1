@@ -62,7 +62,7 @@ router.post("/user/init", async (req, res): Promise<void> => {
         referralCode,
         referredBy,
         isPremium: false,
-        creditsEarned: referredBy ? 5 : 0,
+        creditsEarned: referredBy ? 10 : 5,
         totalReferrals: 0,
       }).returning();
       user = inserted[0];
