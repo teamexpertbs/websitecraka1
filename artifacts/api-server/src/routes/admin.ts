@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db, osintApis, osintHistory, osintCache, crakaUsers } from "@workspace/db";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, gt } from "drizzle-orm";
 import { generateToken, adminAuthMiddleware, refreshTokenHandler } from "../lib/jwt";
 import { AdminLoginSchema, AdminCreateApiSchema, AdminGrantPremiumSchema, formatValidationError } from "../lib/validation";
+import { logTokenTxn } from "../lib/tokenLog";
 
 const router = Router();
 
@@ -40,6 +41,7 @@ router.get("/admin/apis", adminAuthMiddleware, async (req, res) => {
   res.json(apis.map(a => ({
     id: a.id, slug: a.slug, name: a.name, url: a.url, command: a.command,
     example: a.example, pattern: a.pattern, category: a.category, credits: a.credits,
+    cacheTtlSeconds: a.cacheTtlSeconds,
     isActive: a.isActive, createdAt: a.createdAt.toISOString(),
   })));
 });
@@ -52,20 +54,27 @@ router.post("/admin/apis", adminAuthMiddleware, async (req, res) => {
   }
 
   const { slug, name, url, command, example, pattern, category, credits, isActive } = validation.data;
+  const cacheTtlSecondsRaw = (req.body as any)?.cacheTtlSeconds;
+  const cacheTtlSeconds = Number.isFinite(Number(cacheTtlSecondsRaw))
+    ? Math.max(0, Math.min(86400, Number(cacheTtlSecondsRaw)))
+    : 1800;
+
   const [created] = await db.insert(osintApis).values({
     slug, name, url, command, example, pattern: pattern || null,
     category: category || "Miscellaneous", credits: credits ?? 1, isActive: isActive ?? true,
+    cacheTtlSeconds,
   }).returning();
   res.status(201).json({
     id: created.id, slug: created.slug, name: created.name, url: created.url, command: created.command,
     example: created.example, pattern: created.pattern, category: created.category, credits: created.credits,
+    cacheTtlSeconds: created.cacheTtlSeconds,
     isActive: created.isActive, createdAt: created.createdAt.toISOString(),
   });
 });
 
 router.put("/admin/apis/:slug", adminAuthMiddleware, async (req, res) => {
   const slug = String(req.params.slug);
-  const { name, url, command, example, pattern, category, credits, isActive } = req.body;
+  const { name, url, command, example, pattern, category, credits, isActive, cacheTtlSeconds } = req.body;
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
   if (url !== undefined) updates.url = url;
@@ -75,6 +84,9 @@ router.put("/admin/apis/:slug", adminAuthMiddleware, async (req, res) => {
   if (category !== undefined) updates.category = category;
   if (credits !== undefined) updates.credits = credits;
   if (isActive !== undefined) updates.isActive = isActive;
+  if (cacheTtlSeconds !== undefined && Number.isFinite(Number(cacheTtlSeconds))) {
+    updates.cacheTtlSeconds = Math.max(0, Math.min(86400, Number(cacheTtlSeconds)));
+  }
   
   const [updated] = await db.update(osintApis).set(updates).where(eq(osintApis.slug, slug)).returning();
   if (!updated) {
@@ -84,8 +96,78 @@ router.put("/admin/apis/:slug", adminAuthMiddleware, async (req, res) => {
   res.json({
     id: updated.id, slug: updated.slug, name: updated.name, url: updated.url, command: updated.command,
     example: updated.example, pattern: updated.pattern, category: updated.category, credits: updated.credits,
+    cacheTtlSeconds: updated.cacheTtlSeconds,
     isActive: updated.isActive, createdAt: updated.createdAt.toISOString(),
   });
+});
+
+router.get("/admin/api-health", adminAuthMiddleware, async (req, res) => {
+  // Compute per-API success / fail / last-used over the last 24h and all-time.
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const apis = await db.select().from(osintApis).orderBy(osintApis.id);
+
+  const allTimeStats = await db
+    .select({
+      slug: osintHistory.slug,
+      total: sql<number>`count(*)`,
+      success: sql<number>`sum(case when ${osintHistory.success} then 1 else 0 end)`,
+      lastUsedAt: sql<Date>`max(${osintHistory.createdAt})`,
+    })
+    .from(osintHistory)
+    .groupBy(osintHistory.slug);
+
+  const recentStats = await db
+    .select({
+      slug: osintHistory.slug,
+      total: sql<number>`count(*)`,
+      success: sql<number>`sum(case when ${osintHistory.success} then 1 else 0 end)`,
+    })
+    .from(osintHistory)
+    .where(gt(osintHistory.createdAt, since24h))
+    .groupBy(osintHistory.slug);
+
+  const allBySlug = new Map(allTimeStats.map(s => [s.slug, s]));
+  const recBySlug = new Map(recentStats.map(s => [s.slug, s]));
+
+  const result = apis.map(api => {
+    const all = allBySlug.get(api.slug);
+    const rec = recBySlug.get(api.slug);
+    const totalAll = Number(all?.total ?? 0);
+    const successAll = Number(all?.success ?? 0);
+    const total24h = Number(rec?.total ?? 0);
+    const success24h = Number(rec?.success ?? 0);
+    const successRate = totalAll === 0 ? null : Math.round((successAll / totalAll) * 100);
+    const successRate24h = total24h === 0 ? null : Math.round((success24h / total24h) * 100);
+    const lastUsedAt = all?.lastUsedAt ? new Date(all.lastUsedAt as any).toISOString() : null;
+
+    let status: "healthy" | "degraded" | "down" | "idle";
+    if (totalAll === 0) status = "idle";
+    else if (successRate24h !== null && successRate24h < 30 && total24h >= 3) status = "down";
+    else if (successRate24h !== null && successRate24h < 70 && total24h >= 3) status = "degraded";
+    else if (successRate !== null && successRate < 50) status = "degraded";
+    else status = "healthy";
+
+    return {
+      slug: api.slug,
+      name: api.name,
+      category: api.category,
+      isActive: api.isActive,
+      cacheTtlSeconds: api.cacheTtlSeconds,
+      totalRequests: totalAll,
+      successCount: successAll,
+      failCount: totalAll - successAll,
+      successRate,
+      total24h,
+      success24h,
+      fail24h: total24h - success24h,
+      successRate24h,
+      lastUsedAt,
+      status,
+    };
+  });
+
+  res.json({ apis: result, since24h: since24h.toISOString() });
 });
 
 router.delete("/admin/apis/:slug", adminAuthMiddleware, async (req, res) => {
@@ -177,14 +259,25 @@ router.post("/admin/grant-premium", adminAuthMiddleware, async (req, res) => {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30); // 30 days from now
 
-  await db.update(crakaUsers)
+  const [updatedUser] = await db.update(crakaUsers)
     .set({ 
       isPremium: true, 
       premiumPlan: plan,
       premiumExpiresAt: expiresAt,
       creditsEarned: sql`${crakaUsers.creditsEarned} + ${tokensToAdd}`
     })
-    .where(eq(crakaUsers.referralCode, code));
+    .where(eq(crakaUsers.referralCode, code))
+    .returning({ sessionId: crakaUsers.sessionId, creditsEarned: crakaUsers.creditsEarned });
+
+  if (updatedUser?.sessionId && tokensToAdd > 0) {
+    await logTokenTxn({
+      sessionId: updatedUser.sessionId,
+      type: "grant",
+      amount: tokensToAdd,
+      reason: `Premium ${plan} grant (₹${amount})`,
+      balanceAfter: updatedUser.creditsEarned,
+    });
+  }
     
   res.json({ success: true, message: `Premium (${plan}) granted to user ${code}. Added ${tokensToAdd} tokens.` });
 });
@@ -210,6 +303,7 @@ router.get("/admin/users", adminAuthMiddleware, async (req, res) => {
     referralCode: u.referralCode,
     isPremium: u.isPremium,
     premiumPlan: u.premiumPlan,
+    premiumExpiresAt: u.premiumExpiresAt ? u.premiumExpiresAt.toISOString() : null,
     totalReferrals: u.totalReferrals,
     creditsEarned: u.creditsEarned,
     createdAt: u.createdAt.toISOString(),

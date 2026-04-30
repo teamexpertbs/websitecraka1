@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { crakaUsers, crakaReferrals } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { crakaUsers, crakaReferrals, osintTokenTransactions } from "@workspace/db";
+import { eq, sql, desc } from "drizzle-orm";
 import { UserInitSchema, UserMeSchema, formatValidationError } from "../lib/validation";
 import { logger } from "../lib/logger";
+import { logTokenTxn } from "../lib/tokenLog";
 
 const router = Router();
 
@@ -78,21 +79,42 @@ router.post("/user/init", async (req, res): Promise<void> => {
             updateData.premiumExpiresAt = expiresAt;
           }
 
-          await db.update(crakaUsers)
+          const [updatedReferrer] = await db.update(crakaUsers)
             .set(updateData)
-            .where(eq(crakaUsers.referralCode, usedReferralCode));
+            .where(eq(crakaUsers.referralCode, usedReferralCode))
+            .returning({ creditsEarned: crakaUsers.creditsEarned });
+
+          // Log referral bonus for the referrer
+          if (referrer.sessionId) {
+            await logTokenTxn({
+              sessionId: referrer.sessionId,
+              type: "earn",
+              amount: 2,
+              reason: `Referral bonus — invited ${sessionId.slice(0, 12)}…`,
+              balanceAfter: updatedReferrer?.creditsEarned ?? 0,
+            });
+          }
         }
       }
 
+      const initialCredits = referredBy ? 10 : 5;
       const inserted = await db.insert(crakaUsers).values({
         sessionId,
         referralCode,
         referredBy,
         isPremium: false,
-        creditsEarned: referredBy ? 10 : 5,
+        creditsEarned: initialCredits,
         totalReferrals: 0,
       }).returning();
       user = inserted[0];
+
+      await logTokenTxn({
+        sessionId,
+        type: "init",
+        amount: initialCredits,
+        reason: referredBy ? "Welcome bonus + referred signup" : "Welcome bonus",
+        balanceAfter: initialCredits,
+      });
     }
 
     res.json({
@@ -105,6 +127,37 @@ router.post("/user/init", async (req, res): Promise<void> => {
     });
   } catch (err) {
     logger.error({ err }, "Error initializing user");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/user/transactions", async (req, res): Promise<void> => {
+  try {
+    const sessionId = String(req.query.sessionId || "").trim();
+    if (!sessionId) {
+      res.status(400).json({ error: "sessionId required" });
+      return;
+    }
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const txns = await db
+      .select()
+      .from(osintTokenTransactions)
+      .where(eq(osintTokenTransactions.sessionId, sessionId))
+      .orderBy(desc(osintTokenTransactions.createdAt))
+      .limit(limit);
+
+    res.json({
+      entries: txns.map(t => ({
+        id: t.id,
+        type: t.type,
+        amount: t.amount,
+        reason: t.reason,
+        balanceAfter: t.balanceAfter,
+        createdAt: t.createdAt.toISOString(),
+      })),
+    });
+  } catch (err) {
+    logger.error({ err }, "Error fetching token transactions");
     res.status(500).json({ error: "Internal server error" });
   }
 });

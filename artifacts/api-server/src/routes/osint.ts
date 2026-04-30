@@ -3,11 +3,24 @@ import { db, osintApis, osintHistory, osintCache, crakaUsers } from "@workspace/
 import { eq, sql, desc, and, gt } from "drizzle-orm";
 import https from "https";
 import http from "http";
+import { logTokenTxn } from "../lib/tokenLog";
+import { createRateLimiter } from "../lib/rateLimit";
 
 const router = Router();
 
 const DEVELOPER_CREDIT = "@DM_CRAKA_OWNER_BOT";
-const CACHE_TTL_MINUTES = 30;
+const DEFAULT_CACHE_TTL_SECONDS = 1800; // 30 minutes
+
+// Per-session rate limit on lookups: 10 requests / minute
+const lookupRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 10,
+  keyFn: (req) => {
+    const sid = (req.body && (req.body as any).sessionId) as string | undefined;
+    return sid && typeof sid === "string" ? `lookup:${sid}` : null;
+  },
+  message: "Too many lookups. Aap ek minute mein sirf 10 searches kar sakte hain. Thodi der ruk kar try karein.",
+});
 
 const DEFAULT_APIS = [
   { slug: "phone",    name: "Phone Lookup",    url: "https://exploitsindia.site/api/number.php?exploits={query}",                      command: "/phone",    example: "9876543210",       pattern: "^[6-9]\\d{9}$",                                                               category: "Phone",    credits: 1 },
@@ -118,12 +131,13 @@ router.get("/osint/apis", async (req, res) => {
   const mapped = apis.map(a => ({
     id: a.id, slug: a.slug, name: a.name, url: a.url, command: a.command,
     example: a.example, pattern: a.pattern, category: a.category, credits: a.credits,
+    cacheTtlSeconds: a.cacheTtlSeconds,
     isActive: a.isActive, createdAt: a.createdAt.toISOString(),
   }));
   res.json(mapped);
 });
 
-router.post("/osint/lookup", async (req, res) => {
+router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
   const { slug, query: rawQuery, sessionId } = req.body as { slug: string; query: string; sessionId: string };
   
   if (!slug || !rawQuery || !sessionId) {
@@ -164,16 +178,25 @@ router.post("/osint/lookup", async (req, res) => {
   
   if (!isUnlimited) {
     // Deduct tokens
-    await db.update(crakaUsers)
+    const [updated] = await db.update(crakaUsers)
       .set({ creditsEarned: sql`${crakaUsers.creditsEarned} - ${apiRow.credits}` })
-      .where(eq(crakaUsers.sessionId, sessionId));
+      .where(eq(crakaUsers.sessionId, sessionId))
+      .returning({ creditsEarned: crakaUsers.creditsEarned });
+    await logTokenTxn({
+      sessionId,
+      type: "spend",
+      amount: -apiRow.credits,
+      reason: `${apiRow.name} lookup`,
+      balanceAfter: updated?.creditsEarned ?? 0,
+    });
   }
   
   if (["vehicle", "pan", "ifsc", "gstin"].includes(slug)) {
     query = query.toUpperCase().replace(/[\s\-]/g, "");
   }
   
-  const cutoff = new Date(Date.now() - CACHE_TTL_MINUTES * 60 * 1000);
+  const ttlSeconds = (apiRow as any).cacheTtlSeconds ?? DEFAULT_CACHE_TTL_SECONDS;
+  const cutoff = new Date(Date.now() - ttlSeconds * 1000);
   const cached = await db.select().from(osintCache).where(
     and(eq(osintCache.slug, slug), eq(osintCache.queryVal, query), gt(osintCache.createdAt, cutoff))
   ).limit(1);
@@ -199,7 +222,17 @@ router.post("/osint/lookup", async (req, res) => {
       await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
       if (!isUnlimited) {
         // Refund tokens
-        await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId));
+        const [refunded] = await db.update(crakaUsers)
+          .set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` })
+          .where(eq(crakaUsers.sessionId, sessionId))
+          .returning({ creditsEarned: crakaUsers.creditsEarned });
+        await logTokenTxn({
+          sessionId,
+          type: "refund",
+          amount: apiRow.credits,
+          reason: `${apiRow.name} lookup failed — refunded`,
+          balanceAfter: refunded?.creditsEarned ?? 0,
+        });
       }
       res.json({ data: rawData || {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: `Search Failed or No Data (Tokens Refunded)` });
       return;
@@ -215,7 +248,17 @@ router.post("/osint/lookup", async (req, res) => {
     await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
     if (!isUnlimited) {
       // Refund tokens on catch error
-      await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId));
+      const [refunded] = await db.update(crakaUsers)
+        .set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` })
+        .where(eq(crakaUsers.sessionId, sessionId))
+        .returning({ creditsEarned: crakaUsers.creditsEarned });
+      await logTokenTxn({
+        sessionId,
+        type: "refund",
+        amount: apiRow.credits,
+        reason: `${apiRow.name} network error — refunded`,
+        balanceAfter: refunded?.creditsEarned ?? 0,
+      });
     }
     res.json({ data: {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: "Network Error (Tokens Refunded)" });
   }

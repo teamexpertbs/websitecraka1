@@ -1,9 +1,27 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Terminal, History, BarChart2, Wrench, Shield, LogOut, Crown, Gift, Menu, X } from "lucide-react";
+import {
+  Terminal,
+  History,
+  BarChart2,
+  Wrench,
+  Shield,
+  LogOut,
+  Crown,
+  Gift,
+  Menu,
+  X,
+  Receipt,
+  Sun,
+  Moon,
+  Languages,
+} from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
 import { TokenBadge } from "@/components/token-badge";
+import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { useEnsureUserInitialized } from "@/lib/user";
+import { useTheme } from "@/lib/theme";
+import { useT } from "@/lib/i18n";
 
 interface LayoutProps {
   children: ReactNode;
@@ -13,15 +31,38 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { token, setToken } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme, toggle: toggleTheme } = useTheme();
+  const { lang, toggle: toggleLang, t } = useT();
   useEnsureUserInitialized();
 
   const navItems = [
-    { href: "/", label: "Terminal", icon: Terminal },
-    { href: "/logs", label: "Logs", icon: History },
-    { href: "/stats", label: "Stats", icon: BarChart2 },
-    { href: "/tools", label: "Tools", icon: Wrench },
-    { href: "/admin", label: "Admin Panel", icon: Shield },
+    { href: "/",             labelKey: "nav.terminal",     fallback: "Terminal",     icon: Terminal },
+    { href: "/logs",         labelKey: "nav.logs",         fallback: "Logs",         icon: History },
+    { href: "/stats",        labelKey: "nav.stats",        fallback: "Stats",        icon: BarChart2 },
+    { href: "/tools",        labelKey: "nav.tools",        fallback: "Tools",        icon: Wrench },
+    { href: "/transactions", labelKey: "nav.transactions", fallback: "Transactions", icon: Receipt },
+    { href: "/admin",        labelKey: "nav.admin",        fallback: "Admin Panel",  icon: Shield },
   ];
+
+  const ThemeAndLangControls = (
+    <div className="flex items-center gap-1.5">
+      <button
+        onClick={toggleTheme}
+        title={theme === "dark" ? t("ui.theme.light", "Light") : t("ui.theme.dark", "Dark")}
+        className="p-1.5 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+      >
+        {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      </button>
+      <button
+        onClick={toggleLang}
+        title="Switch language"
+        className="px-2 py-1 rounded border border-border text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-1"
+      >
+        <Languages className="w-3 h-3" />
+        {lang === "en" ? "हि" : "EN"}
+      </button>
+    </div>
+  );
 
   const Sidebar = (
     <aside className="w-60 flex flex-col border-r border-border bg-card h-full">
@@ -40,7 +81,7 @@ export function Layout({ children }: LayoutProps) {
 
       <nav className="flex-1 overflow-y-auto p-4 space-y-1">
         <div className="text-xs text-muted-foreground font-semibold mb-3 uppercase tracking-widest">
-          Modules
+          {t("nav.modules", "Modules")}
         </div>
         {navItems.map((item) => {
           const isActive = location === item.href;
@@ -56,7 +97,7 @@ export function Layout({ children }: LayoutProps) {
                 }`}
               >
                 <Icon className="w-4 h-4" />
-                <span className="text-sm font-medium">{item.label}</span>
+                <span className="text-sm font-medium">{t(item.labelKey, item.fallback)}</span>
               </div>
             </Link>
           );
@@ -64,7 +105,7 @@ export function Layout({ children }: LayoutProps) {
 
         <div className="pt-3 pb-1">
           <div className="text-xs text-muted-foreground font-semibold mb-2 uppercase tracking-widest">
-            Membership
+            {t("nav.membership", "Membership")}
           </div>
         </div>
 
@@ -78,7 +119,7 @@ export function Layout({ children }: LayoutProps) {
             }`}
           >
             <Crown className="w-4 h-4" />
-            <span className="text-sm font-medium">Premium</span>
+            <span className="text-sm font-medium">{t("nav.premium", "Premium")}</span>
             <span className="ml-auto text-[9px] font-bold bg-yellow-400/20 text-yellow-400 px-1.5 py-0.5 rounded">
               HOT
             </span>
@@ -95,7 +136,7 @@ export function Layout({ children }: LayoutProps) {
             }`}
           >
             <Gift className="w-4 h-4" />
-            <span className="text-sm font-medium">Refer & Earn</span>
+            <span className="text-sm font-medium">{t("nav.refer", "Refer & Earn")}</span>
           </div>
         </Link>
       </nav>
@@ -104,13 +145,16 @@ export function Layout({ children }: LayoutProps) {
         <div className="flex justify-center">
           <TokenBadge />
         </div>
+        <div className="flex items-center justify-center">
+          {ThemeAndLangControls}
+        </div>
         {token && (
           <button
             onClick={() => setToken(null)}
-            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-md transition-colors mb-3"
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-md transition-colors"
           >
             <LogOut className="w-4 h-4" />
-            <span>Logout</span>
+            <span>{t("nav.logout", "Logout")}</span>
           </button>
         )}
         <div className="text-xs text-muted-foreground text-center">
@@ -158,14 +202,18 @@ export function Layout({ children }: LayoutProps) {
             <span className="font-bold text-primary tracking-wider text-sm">CraKa OSINT</span>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            {ThemeAndLangControls}
             <TokenBadge compact />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-20 md:pb-8">
           {children}
         </div>
       </main>
+
+      {/* Mobile bottom navigation */}
+      <MobileBottomNav />
     </div>
   );
 }

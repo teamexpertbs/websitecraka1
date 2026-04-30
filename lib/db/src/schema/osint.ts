@@ -12,6 +12,7 @@ export const osintApis = pgTable("osint_apis", {
   pattern: text("pattern"),
   category: text("category").notNull().default("Miscellaneous"),
   credits: integer("credits").notNull().default(1),
+  cacheTtlSeconds: integer("cache_ttl_seconds").notNull().default(1800),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -73,3 +74,17 @@ export const crakaReferrals = pgTable("craka_referrals", {
 export const insertCrakaReferralSchema = createInsertSchema(crakaReferrals).omit({ id: true, createdAt: true });
 export type InsertCrakaReferral = z.infer<typeof insertCrakaReferralSchema>;
 export type CrakaReferral = typeof crakaReferrals.$inferSelect;
+
+export const osintTokenTransactions = pgTable("osint_token_transactions", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  type: text("type").notNull(), // 'spend' | 'refund' | 'earn' | 'grant' | 'bonus' | 'init'
+  amount: integer("amount").notNull(), // signed: negative = spent, positive = earned
+  reason: text("reason").notNull(),
+  balanceAfter: integer("balance_after").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertOsintTokenTransactionSchema = createInsertSchema(osintTokenTransactions).omit({ id: true, createdAt: true });
+export type InsertOsintTokenTransaction = z.infer<typeof insertOsintTokenTransactionSchema>;
+export type OsintTokenTransaction = typeof osintTokenTransactions.$inferSelect;

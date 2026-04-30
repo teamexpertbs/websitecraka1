@@ -19,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Shield, Lock, Activity, Database, Trash2, Plus, Edit2, KeyRound, Crown, Check, Users } from "lucide-react";
+import { Shield, Lock, Activity, Database, Trash2, Plus, Edit2, KeyRound, Crown, Check, Users, HeartPulse, RefreshCw } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function Admin() {
@@ -178,8 +178,32 @@ function AdminDashboard() {
   const [granting, setGranting] = useState(false);
   const [showRecentExecutions, setShowRecentExecutions] = useState(false);
 
+  const [apiHealth, setApiHealth] = useState<any[]>([]);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthError, setHealthError] = useState<string | null>(null);
+
+  const fetchApiHealth = async () => {
+    setHealthLoading(true);
+    setHealthError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/api-health`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load health");
+      setApiHealth(Array.isArray(data.apis) ? data.apis : []);
+    } catch (e: any) {
+      setHealthError(e.message || "Unable to load API health");
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (token) fetchUsers();
+    if (token) {
+      fetchUsers();
+      fetchApiHealth();
+    }
   }, [token]);
 
   const handleGrantPremium = async () => {
@@ -526,6 +550,91 @@ function AdminDashboard() {
         
         <Card className="bg-card border-border overflow-hidden">
           <CardHeader className="bg-black/40 border-b border-border flex items-center justify-between gap-4">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <HeartPulse className="w-5 h-5 text-emerald-400" />
+              API Health Monitor
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={fetchApiHealth} disabled={healthLoading} className="h-9 gap-2">
+              <RefreshCw className={`w-3.5 h-3.5 ${healthLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            {healthError ? (
+              <div className="p-4 text-destructive text-sm">{healthError}</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead>API</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">24h Total</TableHead>
+                    <TableHead className="text-right">24h Success %</TableHead>
+                    <TableHead className="text-right">All-time</TableHead>
+                    <TableHead className="text-right">All-time %</TableHead>
+                    <TableHead>Last Used</TableHead>
+                    <TableHead className="text-right">Cache TTL</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {apiHealth.length === 0 && !healthLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-6 text-sm">
+                        No data yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    apiHealth.map((row) => {
+                      const tone =
+                        row.status === "healthy"
+                          ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
+                          : row.status === "degraded"
+                            ? "border-yellow-500/40 text-yellow-400 bg-yellow-500/10"
+                            : row.status === "down"
+                              ? "border-rose-500/40 text-rose-400 bg-rose-500/10"
+                              : "border-zinc-600/40 text-muted-foreground bg-zinc-700/20";
+                      return (
+                        <TableRow key={row.slug} className="border-border hover:bg-muted/30">
+                          <TableCell>
+                            <div className="font-bold text-foreground">{row.name}</div>
+                            <div className="font-mono text-[11px] text-muted-foreground">{row.slug}</div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`uppercase tracking-wider text-[10px] ${tone}`}>
+                              {row.status}
+                            </Badge>
+                            {!row.isActive && (
+                              <Badge variant="outline" className="ml-1 border-zinc-600 text-muted-foreground text-[10px]">
+                                OFF
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">{row.total24h}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {row.successRate24h === null ? "—" : `${row.successRate24h}%`}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm text-muted-foreground">{row.totalRequests}</TableCell>
+                          <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                            {row.successRate === null ? "—" : `${row.successRate}%`}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {row.lastUsedAt ? new Date(row.lastUsedAt).toLocaleString() : "—"}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                            {Math.round((row.cacheTtlSeconds ?? 1800) / 60)}m
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border overflow-hidden">
+          <CardHeader className="bg-black/40 border-b border-border flex items-center justify-between gap-4">
             <CardTitle className="text-lg">Recent Executions</CardTitle>
             <Button variant="outline" size="sm" onClick={() => setShowRecentExecutions(prev => !prev)} className="h-9">
               {showRecentExecutions ? "Hide" : "Show"}
@@ -570,14 +679,15 @@ function AdminDashboard() {
 function ApiFormDialog({ mode, initialData, onSubmit }: { mode: 'create' | 'edit', initialData?: any, onSubmit: (data: any) => void }) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState(initialData || {
-    name: "", slug: "", url: "", command: "", example: "", category: "Phone", credits: 1, pattern: "", isActive: true
+    name: "", slug: "", url: "", command: "", example: "", category: "Phone", credits: 1, pattern: "", isActive: true, cacheTtlSeconds: 1800
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
       ...formData,
-      credits: Number(formData.credits)
+      credits: Number(formData.credits),
+      cacheTtlSeconds: Number(formData.cacheTtlSeconds ?? 1800),
     });
     setOpen(false);
   };
@@ -634,6 +744,19 @@ function ApiFormDialog({ mode, initialData, onSubmit }: { mode: 'create' | 'edit
             <div className="space-y-2 col-span-2">
               <Label className="font-mono text-xs text-muted-foreground">Regex Pattern (optional)</Label>
               <Input value={formData.pattern || ""} onChange={e => setFormData({...formData, pattern: e.target.value})} className="bg-black/50 border-border font-mono text-sm" />
+            </div>
+            <div className="space-y-2 col-span-2">
+              <Label className="font-mono text-xs text-muted-foreground">
+                Cache TTL (seconds) — 0 disables, max 86400 (24h). Default 1800 (30 min).
+              </Label>
+              <Input
+                type="number"
+                value={formData.cacheTtlSeconds ?? 1800}
+                onChange={e => setFormData({...formData, cacheTtlSeconds: e.target.value})}
+                className="bg-black/50 border-border font-mono text-sm"
+                min="0"
+                max="86400"
+              />
             </div>
           </div>
           <DialogFooter className="pt-4">

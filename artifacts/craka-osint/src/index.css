@@ -4,7 +4,8 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(:not(.light *)));
+@custom-variant light (&:is(.light *));
 
 @theme inline {
   --color-background: hsl(var(--background));
@@ -123,4 +124,57 @@
 
 .text-glow {
   text-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
+}
+
+/* ===== Light Theme ===== */
+.light {
+  --background: 210 30% 98%;        /* near-white */
+  --foreground: 222 39% 12%;        /* deep navy text */
+  --border: 213 24% 86%;
+  --input: 213 24% 92%;
+  --ring: 199 92% 42%;              /* slightly darker cyan for contrast */
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 39% 12%;
+  --card-border: 213 24% 86%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 39% 12%;
+  --popover-border: 213 24% 86%;
+
+  --primary: 199 92% 42%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 255 60% 50%;
+  --secondary-foreground: 0 0% 100%;
+
+  --muted: 213 24% 92%;
+  --muted-foreground: 215 19% 35%;
+
+  --accent: 199 92% 42%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 357 78% 50%;
+  --destructive-foreground: 0 0% 100%;
+
+  --success: 142 71% 36%;
+  --warning: 38 92% 42%;
+
+  --sidebar: 210 30% 98%;
+  --sidebar-foreground: 222 39% 12%;
+  --sidebar-border: 213 24% 86%;
+  --sidebar-primary: 199 92% 42%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 213 24% 92%;
+  --sidebar-accent-foreground: 199 92% 42%;
+  --sidebar-ring: 199 92% 42%;
+}
+
+.light .glow-border {
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.25);
+  border-color: hsl(var(--primary) / 0.4);
+}
+
+.light .text-glow {
+  text-shadow: none;
 }
