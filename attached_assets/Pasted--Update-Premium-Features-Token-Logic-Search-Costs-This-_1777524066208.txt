@@ -1,0 +1,43 @@
+# Update Premium Features, Token Logic & Search Costs
+
+This plan implements the requested features for the premium granting system, token usage during OSINT searches, and user initialization.
+
+## Proposed Changes
+
+### `artifacts/api-server/src/lib/validation.ts`
+#### [MODIFY] validation.ts
+- Update `AdminGrantPremiumSchema` to include an optional `amount` field (number) representing the amount paid in Rupees.
+
+### `artifacts/api-server/src/routes/admin.ts`
+#### [MODIFY] admin.ts
+- Update the `/admin/grant-premium` route.
+- Calculate tokens to award based on `amount / 2` (1 token per 2 Rupees).
+- **Bug Fix**: Set `premiumExpiresAt` to 30 days from the current date to properly fix premium feature expiry.
+- Update the database query to increment `creditsEarned` by the calculated tokens and set `isPremium: true`, `premiumPlan: plan`, and `premiumExpiresAt`.
+
+### `artifacts/craka-osint/src/pages/admin.tsx`
+#### [MODIFY] admin.tsx
+- Add a new input field for "Amount Paid (₹)" in the "Grant Premium to User" card.
+- Pass the entered `amount` in the API request body to the backend.
+
+### `artifacts/api-server/src/routes/users.ts`
+#### [MODIFY] users.ts
+- **Free Tokens**: Update the `/user/init` route so that new users are granted 5 free tokens (`creditsEarned: 5` as base) by default when they first visit, regardless of whether they used a referral code. 
+
+### `artifacts/api-server/src/routes/osint.ts`
+#### [MODIFY] osint.ts
+- **Token Check & Deduction**: In the `/osint/lookup` route, require `sessionId` and check the user's `creditsEarned`. If the user does not have enough tokens (less than `apiRow.credits` or 1), return an error denying the search.
+- Before executing the search or fetching from the cache, deduct the token(s) from the user's `creditsEarned`.
+- **Refund on Failure**: If the API request fails (e.g., HTTP error, timeout, or exception) or returns no valid data, increment the user's `creditsEarned` back by the deducted amount to refund the token.
+
+## Git Operations
+- After successfully making and testing the changes, I will commit and push the updates to the GitHub repository on the main branch.
+
+## Verification Plan
+1. Test `/user/init` to ensure 5 free tokens are assigned to new users.
+2. Test the Admin Panel UI to grant premium and ensure entering an amount (e.g., ₹10) adds 5 tokens to the user's balance and sets a 30-day expiry.
+3. Perform an OSINT lookup with sufficient tokens and ensure 1 token is deducted.
+4. Simulate a failed OSINT lookup to verify the token is refunded.
+
+> [!NOTE]
+> Please review the updated plan and confirm if it fully meets your requirements. Once approved, I will start executing the code changes!

@@ -1,0 +1,22 @@
+# CraKa OSINT - Premium Features & Token Logic Update
+
+The premium token system, OSINT lookup costs, and UI enhancements have been successfully implemented and pushed to GitHub! Here is a summary of the changes made across the repository.
+
+## 1. Token Economy for OSINT Searches
+- **Token Checks**: Before any search is performed in `/osint/lookup`, the backend now checks if the user has enough tokens. If the balance is insufficient, the search is blocked with an error message: `"Not enough tokens to perform this search. Please purchase premium."`
+- **Cost Deduction**: For each successful search, 1 token (or the API's configured credit cost) is deducted from the user's `creditsEarned` balance *before* initiating the search.
+- **Refund System**: If the API call fails due to a network error, HTTP timeout, or returns an empty or invalid response, the deducted token is automatically refunded back to the user's account, ensuring they are only charged for successful lookups.
+
+## 2. New User Bonus
+- **Free Tokens**: When a new user initializes a session (or signs up), they are now instantly credited with **5 free tokens** (`creditsEarned: 5`) so they can test the service. If they used a referral code, they receive 10 tokens.
+
+## 3. Premium Admin Upgrades
+- **Amount Paid Input**: A new input field for "Amount Paid (₹)" has been added to the Admin Panel (`admin.tsx`).
+- **Token Conversion**: When an admin grants premium to a user, the backend calculates the tokens based on the amount paid (Amount / 2). For example, entering ₹10 adds 5 tokens to the user's account.
+- **Expiry Bug Fix**: Previously, granting premium did not properly set an expiration date. Now, the `premiumExpiresAt` field is explicitly set to **30 days** from the exact moment premium is granted.
+
+## 4. Git Push
+All updates have been committed directly via the GitHub REST API and successfully merged into the `main` branch of your `websitecraka1` repository.
+
+> [!TIP]
+> The backend automatically handles token calculations and validation securely. To test these changes on the live site, just pull these updates into your deployment environment (like Render or InfinityFree) and try performing a search!
