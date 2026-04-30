@@ -2,17 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { Layout } from "@/components/layout";
 import { Copy, Check, Share2, Gift, Users, Zap, Crown, ChevronRight } from "lucide-react";
 import { useLocation } from "wouter";
+import { getOrCreateSession } from "@/lib/session";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-function getOrCreateSession(): string {
-  let sid = localStorage.getItem("craka_session_id");
-  if (!sid) {
-    sid = "sess_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
-    localStorage.setItem("craka_session_id", sid);
-  }
-  return sid;
-}
 
 interface UserData {
   referralCode: string;

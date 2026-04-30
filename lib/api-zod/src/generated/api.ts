@@ -38,6 +38,7 @@ export const ListApisResponse = zod.array(ListApisResponseItem);
 export const PerformLookupBody = zod.object({
   slug: zod.string(),
   query: zod.string(),
+  sessionId: zod.string(),
 });
 
 export const PerformLookupResponse = zod.object({

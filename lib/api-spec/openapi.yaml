@@ -313,9 +313,12 @@ components:
           type: string
         query:
           type: string
+        sessionId:
+          type: string
       required:
         - slug
         - query
+        - sessionId
 
     LookupResult:
       type: object

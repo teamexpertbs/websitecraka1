@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useListApis, usePerformLookup } from "@workspace/api-client-react";
+import { ensureUserInitialized, getOrCreateSession } from "@/lib/session";
 import { Layout } from "@/components/layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -276,6 +277,10 @@ export default function Home() {
   const [result, setResult] = useState<any>(null);
   const [lastQuery, setLastQuery] = useState("");
 
+  useEffect(() => {
+    ensureUserInitialized();
+  }, []);
+
   const filteredApis = apis.filter(api =>
     api.isActive && (activeCategory === "All" || api.category === activeCategory)
   );
@@ -299,7 +304,8 @@ export default function Home() {
 
     setResult(null);
     setLastQuery(query);
-    performLookup.mutate({ data: { slug: selectedApiSlug, query } }, {
+    const sessionId = getOrCreateSession();
+    performLookup.mutate({ data: { slug: selectedApiSlug, query, sessionId } }, {
       onSuccess: (data) => {
         setResult(data);
         if (!data.success) {

@@ -3,18 +3,11 @@ import { Layout } from "@/components/layout";
 import { Crown, Zap, Shield, Check, Users, Clock, Copy, Info } from "lucide-react";
 import { useLocation } from "wouter";
 
+import { getOrCreateSession } from "@/lib/session";
+
 const WA_NUMBER = "917571083385";
 const TELEGRAM = "DM_CRAKA_OWNER_BOT";
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-function getOrCreateSession(): string {
-  let sid = localStorage.getItem("craka_session_id");
-  if (!sid) {
-    sid = "sess_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
-    localStorage.setItem("craka_session_id", sid);
-  }
-  return sid;
-}
 
 const WA_ICON = (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">

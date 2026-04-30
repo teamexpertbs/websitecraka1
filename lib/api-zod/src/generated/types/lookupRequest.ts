@@ -9,4 +9,5 @@
 export interface LookupRequest {
   slug: string;
   query: string;
+  sessionId: string;
 }

@@ -26,6 +26,7 @@ export interface OsintApi {
 export interface LookupRequest {
   slug: string;
   query: string;
+  sessionId: string;
 }
 
 export type LookupResultData = { [key: string]: unknown };
