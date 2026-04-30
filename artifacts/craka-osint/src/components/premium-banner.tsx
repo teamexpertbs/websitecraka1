@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { X, Crown } from "lucide-react";
+import { useCurrentUser, isPremiumActive } from "@/lib/user";
 
 const TELEGRAM = "DM_CRAKA_OWNER_BOT";
 const WA_NUMBER = "917571083385";
@@ -9,6 +10,7 @@ export function PremiumBanner() {
   const [visible, setVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [, navigate] = useLocation();
+  const { data: user } = useCurrentUser();
 
   useEffect(() => {
     const wasDismissed = sessionStorage.getItem("premium_banner_dismissed");
@@ -16,6 +18,9 @@ export function PremiumBanner() {
     const timer = setTimeout(() => setVisible(true), 2500);
     return () => clearTimeout(timer);
   }, []);
+
+  // Don't show the upgrade banner to users who are already on an active premium plan
+  if (isPremiumActive(user)) return null;
 
   const handleDismiss = () => {
     setDismissed(true);

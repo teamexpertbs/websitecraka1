@@ -2,6 +2,8 @@ import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Terminal, History, BarChart2, Wrench, Shield, LogOut, Crown, Gift, Menu, X } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
+import { TokenBadge } from "@/components/token-badge";
+import { useEnsureUserInitialized } from "@/lib/user";
 
 interface LayoutProps {
   children: ReactNode;
@@ -11,6 +13,7 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { token, setToken } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  useEnsureUserInitialized();
 
   const navItems = [
     { href: "/", label: "Terminal", icon: Terminal },
@@ -97,7 +100,10 @@ export function Layout({ children }: LayoutProps) {
         </Link>
       </nav>
 
-      <div className="p-4 border-t border-border mt-auto">
+      <div className="p-4 border-t border-border mt-auto space-y-3">
+        <div className="flex justify-center">
+          <TokenBadge />
+        </div>
         {token && (
           <button
             onClick={() => setToken(null)}
@@ -152,11 +158,7 @@ export function Layout({ children }: LayoutProps) {
             <span className="font-bold text-primary tracking-wider text-sm">CraKa OSINT</span>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <Link href="/premium">
-              <div className="text-[10px] font-bold bg-yellow-400/20 text-yellow-400 border border-yellow-400/30 px-2 py-0.5 rounded-full">
-                PREMIUM
-              </div>
-            </Link>
+            <TokenBadge compact />
           </div>
         </div>
 

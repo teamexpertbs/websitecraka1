@@ -54,6 +54,18 @@ pnpm workspace monorepo using TypeScript. CraKa OSINT Portal — a dark-themed i
 - Result caching (30 min TTL)
 - Query history log
 - Admin panel: API management (CRUD), cache clear, full stats
+- Token / credit system per user session (5 free credits, +5 per referral, refund on failed lookup)
+- Premium plans (Basic / Pro / Elite — Elite = unlimited)
+- Referral system with milestones, premium upgrade banner & buy-tokens modal (WhatsApp +91 7571083385, Telegram @DM_CRAKA_OWNER_BOT)
+
+## Recent UI additions (post-migration)
+
+- `src/lib/user.ts` — `useCurrentUser`, `useRefreshCurrentUser`, `useEnsureUserInitialized`, `isUnlimitedUser`, `isPremiumActive`
+- `src/components/token-badge.tsx` — clickable badge in sidebar/topbar showing live tokens + plan; navigates to `/premium`
+- `src/components/buy-tokens-modal.tsx` — popup shown when tokens run out during a search, with WhatsApp / Telegram CTAs
+- `src/components/layout.tsx` — wires `useEnsureUserInitialized()` and renders `TokenBadge` everywhere
+- `src/pages/home.tsx` — pre-flight token check + 403 handler that opens `BuyTokensModal`
+- `src/components/premium-banner.tsx` — hidden for users with an active premium plan
 
 ## Admin Credentials
 

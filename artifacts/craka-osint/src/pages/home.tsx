@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useListApis, usePerformLookup } from "@workspace/api-client-react";
 import { ensureUserInitialized, getOrCreateSession } from "@/lib/session";
+import { useCurrentUser, useRefreshCurrentUser, isUnlimitedUser } from "@/lib/user";
+import { BuyTokensModal } from "@/components/buy-tokens-modal";
 import { Layout } from "@/components/layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -269,6 +271,8 @@ function ResultViewer({
 export default function Home() {
   const { data: apis = [], isLoading: isLoadingApis } = useListApis();
   const performLookup = usePerformLookup();
+  const { data: currentUser } = useCurrentUser();
+  const refreshUser = useRefreshCurrentUser();
   const { toast } = useToast();
 
   const [activeCategory, setActiveCategory] = useState("All");
@@ -276,6 +280,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<any>(null);
   const [lastQuery, setLastQuery] = useState("");
+  const [showTokenModal, setShowTokenModal] = useState<{ open: boolean; reason: "out-of-tokens" | "insufficient"; need?: number }>({ open: false, reason: "out-of-tokens" });
 
   useEffect(() => {
     ensureUserInitialized();
@@ -302,12 +307,27 @@ export default function Home() {
       }
     }
 
+    // Pre-flight check: tokens
+    const unlimited = isUnlimitedUser(currentUser);
+    const required = selectedApi?.credits ?? 1;
+    const available = currentUser?.creditsEarned ?? 0;
+    if (!unlimited && available < required) {
+      setShowTokenModal({
+        open: true,
+        reason: available === 0 ? "out-of-tokens" : "insufficient",
+        need: required,
+      });
+      return;
+    }
+
     setResult(null);
     setLastQuery(query);
     const sessionId = getOrCreateSession();
     performLookup.mutate({ data: { slug: selectedApiSlug, query, sessionId } }, {
       onSuccess: (data) => {
         setResult(data);
+        // Refresh tokens after every lookup attempt
+        refreshUser();
         if (!data.success) {
           toast({
             title: "Lookup Failed",
@@ -317,9 +337,20 @@ export default function Home() {
         }
       },
       onError: (error: any) => {
+        refreshUser();
+        const status = error?.status ?? error?.response?.status;
+        const msg = error?.data?.error || error?.message || "An unknown error occurred";
+        if (status === 403 || /not enough tokens|insufficient/i.test(msg)) {
+          setShowTokenModal({
+            open: true,
+            reason: (currentUser?.creditsEarned ?? 0) === 0 ? "out-of-tokens" : "insufficient",
+            need: selectedApi?.credits ?? 1,
+          });
+          return;
+        }
         toast({
           title: "Lookup Failed",
-          description: error?.data?.error || "An unknown error occurred",
+          description: msg,
           variant: "destructive"
         });
       }
@@ -494,6 +525,14 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      <BuyTokensModal
+        open={showTokenModal.open}
+        onClose={() => setShowTokenModal((s) => ({ ...s, open: false }))}
+        currentTokens={currentUser?.creditsEarned ?? 0}
+        needTokens={showTokenModal.need}
+        reason={showTokenModal.reason}
+      />
     </Layout>
   );
 }
