@@ -56,6 +56,11 @@ export const crakaUsers = pgTable("craka_users", {
   premiumExpiresAt: timestamp("premium_expires_at"),
   creditsEarned: integer("credits_earned").notNull().default(0),
   totalReferrals: integer("total_referrals").notNull().default(0),
+  // Google OAuth fields
+  googleId: text("google_id").unique(),
+  email: text("email"),
+  displayName: text("display_name"),
+  avatarUrl: text("avatar_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

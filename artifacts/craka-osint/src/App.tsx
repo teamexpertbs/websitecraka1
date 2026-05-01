@@ -14,6 +14,7 @@ import Admin from "@/pages/admin";
 import Premium from "@/pages/premium";
 import Refer from "@/pages/refer";
 import Transactions from "@/pages/transactions";
+import Login from "@/pages/login";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/stats" component={Stats} />
       <Route path="/tools" component={Tools} />
       <Route path="/transactions" component={Transactions} />
+      <Route path="/login" component={Login} />
       <Route path="/admin" component={Admin} />
       <Route path="/premium" component={Premium} />
       <Route path="/refer" component={Refer} />

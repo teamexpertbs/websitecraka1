@@ -15,9 +15,12 @@ import {
   Sun,
   Moon,
   Languages,
+  LogIn,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
+import { useUserStore } from "@/lib/user-store";
 import { TokenBadge } from "@/components/token-badge";
+import { UserAvatar } from "@/components/user-avatar";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { useEnsureUserInitialized } from "@/lib/user";
 import { useTheme } from "@/lib/theme";
@@ -30,6 +33,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { token, setToken } = useAuthStore();
+  const { signedInUser, logout: googleLogout } = useUserStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { theme, toggle: toggleTheme } = useTheme();
   const { lang, toggle: toggleLang, t } = useT();
@@ -142,15 +146,44 @@ export function Layout({ children }: LayoutProps) {
       </nav>
 
       <div className="p-4 border-t border-border mt-auto space-y-3">
+        {/* User identity */}
+        {signedInUser ? (
+          <div className="flex items-center gap-2 px-1">
+            {signedInUser.avatarUrl ? (
+              <img
+                src={signedInUser.avatarUrl}
+                alt={signedInUser.name}
+                className="w-7 h-7 rounded-full object-cover border border-border flex-shrink-0"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-[10px] border border-primary/30 flex-shrink-0">
+                {signedInUser.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-foreground truncate">{signedInUser.name}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{signedInUser.email}</p>
+            </div>
+          </div>
+        ) : (
+          <Link href="/login">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-primary/5 border border-primary/20 hover:bg-primary/10 transition-colors cursor-pointer">
+              <LogIn className="w-4 h-4 text-primary flex-shrink-0" />
+              <span className="text-sm font-medium text-primary">Sign in with Google</span>
+            </div>
+          </Link>
+        )}
+
         <div className="flex justify-center">
           <TokenBadge />
         </div>
         <div className="flex items-center justify-center">
           {ThemeAndLangControls}
         </div>
-        {token && (
+        {(token || signedInUser) && (
           <button
-            onClick={() => setToken(null)}
+            onClick={() => { if (token) setToken(null); if (signedInUser) googleLogout(); }}
             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-md transition-colors"
           >
             <LogOut className="w-4 h-4" />
@@ -203,6 +236,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
           <div className="ml-auto flex items-center gap-2">
             {ThemeAndLangControls}
+            <UserAvatar compact />
             <TokenBadge compact />
           </div>
         </div>
