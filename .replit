@@ -72,6 +72,7 @@ externalPort = 3002
 
 [userenv.shared]
 NEON_DATABASE_URL = "postgresql://neondb_owner:npg_rq4Px3SVbEym@ep-blue-snow-an6vti34.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require"
+VITE_GOOGLE_CLIENT_ID = "1041781002971-o3opiihrnpjv6f4t1mm7g3epkfhp0bd8.apps.googleusercontent.com"
 
 [nix]
 channel = "stable-25_05"
