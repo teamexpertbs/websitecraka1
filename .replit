@@ -25,12 +25,12 @@ name = "Start application"
 author = "agent"
 
 [workflows.workflow.metadata]
-outputType = "webview"
+outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=24042 BASE_PATH=/ pnpm --filter @workspace/craka-osint run dev & PORT=8080 pnpm --filter @workspace/api-server run dev"
-waitForPort = 24042
+args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
+waitForPort = 8080
 
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
