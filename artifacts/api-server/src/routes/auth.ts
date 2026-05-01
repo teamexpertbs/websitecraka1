@@ -53,9 +53,10 @@ router.post("/auth/google", async (req, res): Promise<void> => {
       return;
     }
 
-    const { idToken, sessionId: existingSessionId } = req.body as {
+    const { idToken, sessionId: existingSessionId, referralCode } = req.body as {
       idToken?: string;
       sessionId?: string;
+      referralCode?: string;
     };
 
     if (!idToken || typeof idToken !== "string") {
@@ -119,18 +120,32 @@ router.post("/auth/google", async (req, res): Promise<void> => {
       const sessionId =
         existingSessionId ??
         "sess_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
-      const referralCode = generateReferralCode();
+      const newReferralCode = generateReferralCode();
+
+      // Check if referral code is valid
+      let referredByUser = null;
+      if (referralCode) {
+        referredByUser = await db
+          .select()
+          .from(crakaUsers)
+          .where(eq(crakaUsers.referralCode, referralCode.toUpperCase()))
+          .limit(1)
+          .then((r) => r[0] ?? null);
+      }
+
+      const bonusCredits = referredByUser ? 10 : 5; // Extra 5 for using referral
       const [created] = await db
         .insert(crakaUsers)
         .values({
           sessionId,
-          referralCode,
+          referralCode: newReferralCode,
+          referredBy: referredByUser?.referralCode ?? null,
           googleId,
           email,
           displayName,
           avatarUrl,
           isPremium: false,
-          creditsEarned: 5,
+          creditsEarned: bonusCredits,
           totalReferrals: 0,
         })
         .returning();
@@ -139,10 +154,26 @@ router.post("/auth/google", async (req, res): Promise<void> => {
       await logTokenTxn({
         sessionId: user.sessionId,
         type: "init",
-        amount: 5,
-        reason: "Welcome bonus (Google sign-in)",
-        balanceAfter: 5,
+        amount: bonusCredits,
+        reason: referredByUser ? "Welcome bonus + referral bonus (Google sign-in)" : "Welcome bonus (Google sign-in)",
+        balanceAfter: bonusCredits,
       });
+
+      // Reward the referrer
+      if (referredByUser) {
+        const newCredits = (referredByUser.creditsEarned ?? 0) + 5;
+        await db
+          .update(crakaUsers)
+          .set({ creditsEarned: newCredits, totalReferrals: (referredByUser.totalReferrals ?? 0) + 1 })
+          .where(eq(crakaUsers.id, referredByUser.id));
+        await logTokenTxn({
+          sessionId: referredByUser.sessionId,
+          type: "earn",
+          amount: 5,
+          reason: `Referral bonus — ${displayName} joined`,
+          balanceAfter: newCredits,
+        });
+      }
     } else if (!user.googleId) {
       // User exists but hasn't linked Google yet (shouldn't reach here normally)
       const [updated] = await db

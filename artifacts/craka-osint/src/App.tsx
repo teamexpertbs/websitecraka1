@@ -1,10 +1,11 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PremiumBanner } from "@/components/premium-banner";
 import { ThemeProvider } from "@/lib/theme";
 import { I18nProvider } from "@/lib/i18n";
+import { useUserStore } from "@/lib/user-store";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Logs from "@/pages/logs";
@@ -18,19 +19,35 @@ import Login from "@/pages/login";
 
 const queryClient = new QueryClient();
 
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { signedInUser } = useUserStore();
+  const [location] = useLocation();
+
+  if (!signedInUser && location !== "/login") {
+    return <Redirect to="/login" />;
+  }
+  return <>{children}</>;
+}
+
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/logs" component={Logs} />
-      <Route path="/stats" component={Stats} />
-      <Route path="/tools" component={Tools} />
-      <Route path="/transactions" component={Transactions} />
       <Route path="/login" component={Login} />
-      <Route path="/admin" component={Admin} />
-      <Route path="/premium" component={Premium} />
-      <Route path="/refer" component={Refer} />
-      <Route component={NotFound} />
+      <Route>
+        <AuthGuard>
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/logs" component={Logs} />
+            <Route path="/stats" component={Stats} />
+            <Route path="/tools" component={Tools} />
+            <Route path="/transactions" component={Transactions} />
+            <Route path="/admin" component={Admin} />
+            <Route path="/premium" component={Premium} />
+            <Route path="/refer" component={Refer} />
+            <Route component={NotFound} />
+          </Switch>
+        </AuthGuard>
+      </Route>
     </Switch>
   );
 }

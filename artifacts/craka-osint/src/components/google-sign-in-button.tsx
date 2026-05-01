@@ -26,9 +26,10 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undef
 interface Props {
   onSuccess?: () => void;
   size?: "large" | "medium";
+  referralCode?: string;
 }
 
-export function GoogleSignInButton({ onSuccess, size = "large" }: Props) {
+export function GoogleSignInButton({ onSuccess, size = "large", referralCode }: Props) {
   const btnRef = useRef<HTMLDivElement>(null);
   const { setUserToken } = useUserStore();
   const { toast } = useToast();
@@ -42,7 +43,7 @@ export function GoogleSignInButton({ onSuccess, size = "large" }: Props) {
       const res = await fetch(`${API_BASE}/api/auth/google`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken: response.credential, sessionId }),
+        body: JSON.stringify({ idToken: response.credential, sessionId, referralCode: referralCode || undefined }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Sign-in failed");
