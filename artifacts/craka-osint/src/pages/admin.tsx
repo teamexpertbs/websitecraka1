@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Shield, Lock, Activity, Database, Trash2, Plus, Edit2, KeyRound, Crown, Check, Users, HeartPulse, RefreshCw, Smartphone, FileText, CheckCircle, XCircle, Globe, Clock, Ban, Coins, Megaphone, AlertTriangle, Info, Bell, Send } from "lucide-react";
+import { Shield, Lock, Activity, Database, Trash2, Plus, Edit2, KeyRound, Crown, Check, Users, HeartPulse, RefreshCw, Smartphone, FileText, CheckCircle, XCircle, Globe, Clock, Ban, Coins, Megaphone, AlertTriangle, Info, Bell, Send, ChevronDown, ChevronUp } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 function AdminLayout({ children, minimal }: { children: React.ReactNode; minimal?: boolean }) {
@@ -276,6 +276,7 @@ function AdminDashboard() {
   const [apiHealth, setApiHealth] = useState<any[]>([]);
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthError, setHealthError] = useState<string | null>(null);
+  const [usersExpanded, setUsersExpanded] = useState(true);
 
   const fetchApiHealth = async () => {
     setHealthLoading(true);
@@ -522,14 +523,39 @@ function AdminDashboard() {
 
         <Card className="bg-card border-border overflow-hidden">
           <CardHeader className="bg-muted/40 border-b border-border">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Users className="w-5 h-5 text-primary" />
-              Registered Users
-            </CardTitle>
-            <CardDescription className="text-muted-foreground text-sm">
-              All registered users, premium status, plan, expiry and controls.
-            </CardDescription>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  Registered Users
+                  <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{users.length}</span>
+                </CardTitle>
+                <CardDescription className="text-muted-foreground text-sm mt-1">
+                  All registered users, premium status, plan, expiry and controls.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="ghost" size="sm"
+                  onClick={refreshUsers}
+                  disabled={usersLoading}
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  title="Refresh"
+                >
+                  <RefreshCw className={`w-4 h-4 ${usersLoading ? "animate-spin" : ""}`} />
+                </Button>
+                <Button
+                  variant="outline" size="sm"
+                  onClick={() => setUsersExpanded(p => !p)}
+                  className="h-8 px-3 font-mono text-xs gap-1.5"
+                  title={usersExpanded ? "Collapse users list" : "Expand users list"}
+                >
+                  {usersExpanded ? <><ChevronUp className="w-4 h-4" />Hide</> : <><ChevronDown className="w-4 h-4" />Show ({users.length})</>}
+                </Button>
+              </div>
+            </div>
           </CardHeader>
+          {usersExpanded && (
           <CardContent className="p-0">
             <div className="overflow-x-auto">
             <Table>
@@ -648,6 +674,7 @@ function AdminDashboard() {
             </Table>
             </div>
           </CardContent>
+          )}
         </Card>
 
         <Card className="bg-gradient-to-r from-yellow-400/5 to-yellow-400/10 border-yellow-400/30 overflow-hidden">
