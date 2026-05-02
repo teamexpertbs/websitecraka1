@@ -17,6 +17,7 @@ import Refer from "@/pages/refer";
 import Transactions from "@/pages/transactions";
 import Login from "@/pages/login";
 import ForgotPassword from "@/pages/forgot-password";
+import MagicLogin from "@/pages/magic-login";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/auth/magic" component={MagicLogin} />
       <Route>
         <AuthGuard>
           <Switch>

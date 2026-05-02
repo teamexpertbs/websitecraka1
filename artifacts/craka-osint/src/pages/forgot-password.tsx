@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Terminal, Mail, ArrowLeft, CheckCircle, Loader2 } from "lucide-react";
+import { Terminal, Mail, ArrowLeft, CheckCircle, Loader2, Zap } from "lucide-react";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -9,6 +9,7 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const [devToken, setDevToken] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +24,7 @@ export default function ForgotPassword() {
       const data = await res.json();
       if (res.ok) {
         setSent(true);
+        if (data.dev_token) setDevToken(data.dev_token);
       } else {
         setError(data.error || "Something went wrong");
       }
@@ -68,14 +70,33 @@ export default function ForgotPassword() {
                   <CheckCircle className="w-6 h-6 text-green-400" />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-semibold text-foreground">Login link sent!</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Check <span className="text-primary font-mono">{email}</span> for your secure login link.
-                    It expires in 15 minutes.
-                  </p>
+                  {devToken ? (
+                    <>
+                      <p className="text-sm font-semibold text-foreground">Email service not configured</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Click the button below to sign in directly (dev mode).
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-foreground">Login link sent!</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Check <span className="text-primary font-mono">{email}</span> for your secure login link.
+                        It expires in 15 minutes.
+                      </p>
+                    </>
+                  )}
                 </div>
+                {devToken && (
+                  <a
+                    href={`/auth/magic?token=${devToken}`}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors"
+                  >
+                    <Zap className="w-4 h-4" /> Sign In Now (Dev Mode)
+                  </a>
+                )}
                 <Link href="/login">
-                  <button className="mt-2 text-xs text-primary hover:underline flex items-center gap-1">
+                  <button className="mt-1 text-xs text-primary hover:underline flex items-center gap-1">
                     <ArrowLeft className="w-3 h-3" /> Back to login
                   </button>
                 </Link>
