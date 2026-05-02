@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link, useLocation } from "wouter";
-import { Terminal, Mail, ArrowLeft, CheckCircle, Loader2, Zap } from "lucide-react";
+import { Link } from "wouter";
+import { Terminal, Mail, ArrowLeft, CheckCircle, Loader2, Lock } from "lucide-react";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -9,7 +9,6 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
-  const [devToken, setDevToken] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,9 +23,8 @@ export default function ForgotPassword() {
       const data = await res.json();
       if (res.ok) {
         setSent(true);
-        if (data.dev_token) setDevToken(data.dev_token);
       } else {
-        setError(data.error || "Something went wrong");
+        setError(data.error || "Something went wrong. Please try again.");
       }
     } catch {
       setError("Network error. Please try again.");
@@ -48,6 +46,7 @@ export default function ForgotPassword() {
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-sm flex flex-col items-center gap-7">
+        {/* Logo */}
         <div className="flex flex-col items-center gap-3">
           <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/30 flex items-center justify-center">
             <Terminal className="w-7 h-7 text-primary" />
@@ -57,9 +56,9 @@ export default function ForgotPassword() {
 
         <div className="w-full bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
           <div className="bg-gradient-to-b from-primary/5 to-transparent px-6 pt-5 pb-4 border-b border-border">
-            <h2 className="text-base font-bold text-foreground">Account Recovery</h2>
+            <h2 className="text-base font-bold text-foreground">Forgot Password</h2>
             <p className="text-xs text-muted-foreground mt-1">
-              Enter your registered email — we'll send a login link
+              Enter your email — we'll send a password reset link
             </p>
           </div>
 
@@ -70,31 +69,14 @@ export default function ForgotPassword() {
                   <CheckCircle className="w-6 h-6 text-green-400" />
                 </div>
                 <div className="text-center">
-                  {devToken ? (
-                    <>
-                      <p className="text-sm font-semibold text-foreground">Email service not configured</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Click the button below to sign in directly (dev mode).
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm font-semibold text-foreground">Login link sent!</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Check <span className="text-primary font-mono">{email}</span> for your secure login link.
-                        It expires in 15 minutes.
-                      </p>
-                    </>
-                  )}
+                  <p className="text-sm font-semibold text-foreground">Reset link sent!</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Check <span className="text-primary font-mono">{email}</span> for your password reset link. It expires in <strong>15 minutes</strong>.
+                  </p>
+                  <p className="text-xs text-muted-foreground/60 mt-2">
+                    Didn't get it? Check spam folder.
+                  </p>
                 </div>
-                {devToken && (
-                  <a
-                    href={`/auth/magic?token=${devToken}`}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors"
-                  >
-                    <Zap className="w-4 h-4" /> Sign In Now (Dev Mode)
-                  </a>
-                )}
                 <Link href="/login">
                   <button className="mt-1 text-xs text-primary hover:underline flex items-center gap-1">
                     <ArrowLeft className="w-3 h-3" /> Back to login
@@ -113,7 +95,7 @@ export default function ForgotPassword() {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="your@gmail.com"
+                      placeholder="your@email.com"
                       required
                       className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
                     />
@@ -131,7 +113,7 @@ export default function ForgotPassword() {
                   {loading ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
                   ) : (
-                    <><Mail className="w-4 h-4" /> Send Login Link</>
+                    <><Lock className="w-4 h-4" /> Send Reset Link</>
                   )}
                 </button>
 
@@ -146,7 +128,7 @@ export default function ForgotPassword() {
         </div>
 
         <p className="text-[11px] text-muted-foreground/50 text-center font-mono">
-          Note: Only Google-registered accounts can use email recovery
+          Works for all accounts — Google & email/password
         </p>
       </div>
     </div>
