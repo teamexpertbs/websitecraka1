@@ -130,7 +130,7 @@ export default function Refer() {
                 { label: "Credits Kamaye", value: user?.creditsEarned ?? 0, color: "text-yellow-400" },
                 { label: "Tumhara Rank", value: (user?.totalReferrals ?? 0) >= 100 ? "Elite" : (user?.totalReferrals ?? 0) >= 50 ? "Pro" : (user?.totalReferrals ?? 0) >= 20 ? "Star" : "Naya", color: "text-purple-400" },
               ].map(({ label, value, color }) => (
-                <div key={label} className="bg-black/30 border border-border/50 rounded-xl p-4 text-center">
+                <div key={label} className="bg-muted/30 border border-border/50 rounded-xl p-4 text-center">
                   <div className={`text-2xl font-black ${color}`}>{value}</div>
                   <div className="text-[11px] text-muted-foreground mt-1">{label}</div>
                 </div>
@@ -140,7 +140,7 @@ export default function Refer() {
             <div className="space-y-2">
               <label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Tera Referral Link</label>
               <div className="flex gap-2">
-                <div className="flex-1 flex items-center gap-2 bg-black/50 border border-border rounded-lg px-3 py-2.5 font-mono text-xs text-primary overflow-hidden">
+                <div className="flex-1 flex items-center gap-2 bg-muted/50 border border-border rounded-lg px-3 py-2.5 font-mono text-xs text-primary overflow-hidden">
                   <span className="truncate">{referralLink}</span>
                 </div>
                 <button
@@ -172,7 +172,7 @@ export default function Refer() {
               </button>
             </div>
 
-            <div className="bg-black/20 border border-border/40 rounded-lg p-3 text-xs text-muted-foreground">
+            <div className="bg-muted/20 border border-border/40 rounded-lg p-3 text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">Tera Code:</span>{" "}
               <span className="font-mono text-primary">{user?.referralCode}</span>
               {user?.referredBy && (

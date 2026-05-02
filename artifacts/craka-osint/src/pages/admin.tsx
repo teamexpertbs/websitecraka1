@@ -25,7 +25,7 @@ function AdminLayout({ children, minimal }: { children: React.ReactNode; minimal
   const { token, setToken } = useAuthStore();
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="border-b border-border/60 bg-black/60 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-border/60 bg-card/90 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-md bg-destructive/20 border border-destructive/40 flex items-center justify-center">
@@ -125,7 +125,7 @@ export default function Admin() {
                     <Input 
                       value={username}
                       onChange={e => setUsername(e.target.value)}
-                      className="pl-10 bg-black/40 border-border font-mono"
+                      className="pl-10 bg-muted/60 border-border font-mono"
                       autoFocus
                     />
                     <KeyRound className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
@@ -138,7 +138,7 @@ export default function Admin() {
                       type="password"
                       value={password}
                       onChange={e => setPassword(e.target.value)}
-                      className="pl-10 bg-black/40 border-border font-mono"
+                      className="pl-10 bg-muted/60 border-border font-mono"
                     />
                     <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                   </div>
@@ -155,7 +155,7 @@ export default function Admin() {
                       placeholder="000000"
                       value={totpToken}
                       onChange={e => setTotpToken(e.target.value.replace(/\D/g, ""))}
-                      className="bg-black/40 border-primary/30 font-mono text-center text-xl tracking-[0.5em]"
+                      className="bg-muted/40 border-primary/30 font-mono text-center text-xl tracking-[0.5em]"
                       autoFocus
                     />
                     <p className="text-[10px] text-muted-foreground font-mono">Enter the 6-digit code from your authenticator app</p>
@@ -340,15 +340,15 @@ function AdminDashboard() {
   return (
     <AdminLayout>
       <div className="max-w-6xl mx-auto space-y-6">
-        <header className="mb-8 flex justify-between items-end">
+        <header className="mb-6 flex flex-col sm:flex-row justify-between sm:items-end gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-destructive flex items-center gap-3 text-glow" style={{ textShadow: '0 0 8px rgba(248, 81, 73, 0.5)' }}>
-              <Shield className="w-8 h-8" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-destructive flex items-center gap-3 text-glow" style={{ textShadow: '0 0 8px rgba(248, 81, 73, 0.5)' }}>
+              <Shield className="w-7 h-7 sm:w-8 sm:h-8" />
               Root Control
             </h1>
-            <p className="text-muted-foreground mt-2">Administrative override and system management.</p>
+            <p className="text-muted-foreground mt-1.5 text-sm">Administrative override and system management.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <Button variant="outline" onClick={handleClearCache} disabled={clearCacheMutation.isPending} className="border-warning/50 text-warning hover:bg-warning/10 font-mono">
               <Database className="w-4 h-4 mr-2" />
               PURGE CACHE
@@ -409,8 +409,8 @@ function AdminDashboard() {
           </div>
         )}
 
-        <Card className="bg-card border-border overflow-hidden">
-          <CardHeader className="bg-black/40 border-b border-border">
+        <Card className="bg-card border-border overflow-hidden overflow-x-auto">
+          <CardHeader className="bg-muted/40 border-b border-border">
             <CardTitle className="text-lg flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" />
               Registered Users
@@ -474,8 +474,8 @@ function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-r from-yellow-400/5 to-yellow-400/10 border-yellow-400/30 overflow-hidden">
-          <CardHeader className="bg-black/30 border-b border-yellow-400/20 pb-4">
+        <Card className="bg-gradient-to-r from-yellow-400/5 to-yellow-400/10 border-yellow-400/30 overflow-hidden overflow-x-auto">
+          <CardHeader className="bg-muted/30 border-b border-yellow-400/20 pb-4">
             <CardTitle className="text-lg flex items-center gap-2 text-yellow-400">
               <Crown className="w-5 h-5" />
               Grant Premium to User
@@ -494,7 +494,7 @@ function AdminDashboard() {
                   value={grantCode}
                   onChange={e => setGrantCode(e.target.value.toUpperCase())}
                   placeholder="CRAKA-XXXXXX"
-                  className="bg-black/50 border-yellow-400/30 font-mono uppercase focus-visible:ring-yellow-400/50"
+                  className="bg-muted/50 border-yellow-400/30 font-mono uppercase focus-visible:ring-yellow-400/50"
                   onKeyDown={e => e.key === "Enter" && handleGrantPremium()}
                 />
               </div>
@@ -507,7 +507,7 @@ function AdminDashboard() {
                   value={grantAmount}
                   onChange={e => setGrantAmount(e.target.value)}
                   placeholder="₹"
-                  className="bg-black/50 border-yellow-400/30 font-mono focus-visible:ring-yellow-400/50"
+                  className="bg-muted/50 border-yellow-400/30 font-mono focus-visible:ring-yellow-400/50"
                   onKeyDown={e => e.key === "Enter" && handleGrantPremium()}
                 />
               </div>
@@ -518,7 +518,7 @@ function AdminDashboard() {
                 <select
                   value={grantPlan}
                   onChange={e => setGrantPlan(e.target.value)}
-                  className="w-full h-10 rounded-md border border-yellow-400/30 bg-black/50 text-foreground px-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400/50"
+                  className="w-full h-10 rounded-md border border-yellow-400/30 bg-muted/50 text-foreground px-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400/50"
                 >
                   <option value="Basic">Basic</option>
                   <option value="Pro">Pro</option>
@@ -551,8 +551,8 @@ function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border overflow-hidden">
-          <CardHeader className="bg-black/40 border-b border-border">
+        <Card className="bg-card border-border overflow-hidden overflow-x-auto">
+          <CardHeader className="bg-muted/40 border-b border-border">
             <CardTitle className="text-lg">Registered Vectors</CardTitle>
           </CardHeader>
           <Table>
@@ -625,8 +625,8 @@ function AdminDashboard() {
           </Table>
         </Card>
         
-        <Card className="bg-card border-border overflow-hidden">
-          <CardHeader className="bg-black/40 border-b border-border flex items-center justify-between gap-4">
+        <Card className="bg-card border-border overflow-hidden overflow-x-auto">
+          <CardHeader className="bg-muted/40 border-b border-border flex items-center justify-between gap-4">
             <CardTitle className="text-lg flex items-center gap-2">
               <HeartPulse className="w-5 h-5 text-emerald-400" />
               API Health Monitor
@@ -710,8 +710,8 @@ function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border overflow-hidden">
-          <CardHeader className="bg-black/40 border-b border-border flex items-center justify-between gap-4">
+        <Card className="bg-card border-border overflow-hidden overflow-x-auto">
+          <CardHeader className="bg-muted/40 border-b border-border flex items-center justify-between gap-4">
             <CardTitle className="text-lg">Recent Executions</CardTitle>
             <Button variant="outline" size="sm" onClick={() => setShowRecentExecutions(prev => !prev)} className="h-9">
               {showRecentExecutions ? "Hide" : "Show"}
@@ -788,8 +788,8 @@ function LoginLogsSection() {
   };
 
   return (
-    <Card className="bg-card border-border overflow-hidden">
-      <CardHeader className="bg-black/40 border-b border-border flex items-center justify-between gap-4">
+    <Card className="bg-card border-border overflow-hidden overflow-x-auto">
+      <CardHeader className="bg-muted/40 border-b border-border flex items-center justify-between gap-4">
         <CardTitle className="text-lg flex items-center gap-2">
           <FileText className="w-5 h-5 text-primary" />
           User Login Logs
@@ -919,8 +919,8 @@ function TwoFASection() {
   };
 
   return (
-    <Card className="bg-card border-border overflow-hidden">
-      <CardHeader className="bg-black/40 border-b border-border flex items-center justify-between gap-4">
+    <Card className="bg-card border-border overflow-hidden overflow-x-auto">
+      <CardHeader className="bg-muted/40 border-b border-border flex items-center justify-between gap-4">
         <CardTitle className="text-lg flex items-center gap-2">
           <Smartphone className="w-5 h-5 text-primary" />
           Admin 2FA (TOTP)
@@ -946,12 +946,12 @@ function TwoFASection() {
           ) : (
             <div className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4 items-start">
-                <div className="flex flex-col items-center gap-3 p-4 rounded-lg border border-border bg-black/30">
+                <div className="flex flex-col items-center gap-3 p-4 rounded-lg border border-border bg-muted/30">
                   <p className="text-xs text-muted-foreground font-mono">Scan with Google Authenticator / Authy</p>
                   <img src={setup.qrCode} alt="2FA QR Code" className="w-40 h-40 rounded-lg border border-border bg-white p-1" />
                   <div className="w-full">
                     <p className="text-[10px] text-muted-foreground font-mono mb-1">Manual entry key:</p>
-                    <code className="block text-xs text-primary bg-black/50 border border-border rounded px-2 py-1.5 break-all font-mono">{setup.secret}</code>
+                    <code className="block text-xs text-primary bg-muted/50 border border-border rounded px-2 py-1.5 break-all font-mono">{setup.secret}</code>
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -967,7 +967,7 @@ function TwoFASection() {
                       placeholder="000000"
                       value={verifyCode}
                       onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
-                      className="bg-black/40 border-border font-mono text-center text-xl tracking-[0.5em]"
+                      className="bg-muted/40 border-border font-mono text-center text-xl tracking-[0.5em]"
                     />
                     <Button onClick={handleVerify} disabled={verifyCode.length !== 6} className="w-full font-mono bg-primary text-primary-foreground">
                       VERIFY CODE
@@ -1028,35 +1028,35 @@ function ApiFormDialog({ mode, initialData, onSubmit }: { mode: 'create' | 'edit
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="font-mono text-xs text-muted-foreground">Name</Label>
-              <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="bg-black/50 border-border" required />
+              <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="bg-muted/50 border-border" required />
             </div>
             <div className="space-y-2">
               <Label className="font-mono text-xs text-muted-foreground">Slug</Label>
-              <Input value={formData.slug} onChange={e => setFormData({...formData, slug: e.target.value})} disabled={mode === 'edit'} className="bg-black/50 border-border" required />
+              <Input value={formData.slug} onChange={e => setFormData({...formData, slug: e.target.value})} disabled={mode === 'edit'} className="bg-muted/50 border-border" required />
             </div>
             <div className="space-y-2 col-span-2">
               <Label className="font-mono text-xs text-muted-foreground">URL Endpoint</Label>
-              <Input value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} className="bg-black/50 border-border font-mono text-sm" required />
+              <Input value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} className="bg-muted/50 border-border font-mono text-sm" required />
             </div>
             <div className="space-y-2">
               <Label className="font-mono text-xs text-muted-foreground">Category</Label>
-              <Input value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="bg-black/50 border-border" required />
+              <Input value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="bg-muted/50 border-border" required />
             </div>
             <div className="space-y-2">
               <Label className="font-mono text-xs text-muted-foreground">Credits</Label>
-              <Input type="number" value={formData.credits} onChange={e => setFormData({...formData, credits: e.target.value})} className="bg-black/50 border-border" required min="0" />
+              <Input type="number" value={formData.credits} onChange={e => setFormData({...formData, credits: e.target.value})} className="bg-muted/50 border-border" required min="0" />
             </div>
             <div className="space-y-2">
               <Label className="font-mono text-xs text-muted-foreground">Command Hint</Label>
-              <Input value={formData.command} onChange={e => setFormData({...formData, command: e.target.value})} className="bg-black/50 border-border" required />
+              <Input value={formData.command} onChange={e => setFormData({...formData, command: e.target.value})} className="bg-muted/50 border-border" required />
             </div>
             <div className="space-y-2">
               <Label className="font-mono text-xs text-muted-foreground">Example Query</Label>
-              <Input value={formData.example} onChange={e => setFormData({...formData, example: e.target.value})} className="bg-black/50 border-border" required />
+              <Input value={formData.example} onChange={e => setFormData({...formData, example: e.target.value})} className="bg-muted/50 border-border" required />
             </div>
             <div className="space-y-2 col-span-2">
               <Label className="font-mono text-xs text-muted-foreground">Regex Pattern (optional)</Label>
-              <Input value={formData.pattern || ""} onChange={e => setFormData({...formData, pattern: e.target.value})} className="bg-black/50 border-border font-mono text-sm" />
+              <Input value={formData.pattern || ""} onChange={e => setFormData({...formData, pattern: e.target.value})} className="bg-muted/50 border-border font-mono text-sm" />
             </div>
             <div className="space-y-2 col-span-2">
               <Label className="font-mono text-xs text-muted-foreground">
@@ -1066,7 +1066,7 @@ function ApiFormDialog({ mode, initialData, onSubmit }: { mode: 'create' | 'edit
                 type="number"
                 value={formData.cacheTtlSeconds ?? 1800}
                 onChange={e => setFormData({...formData, cacheTtlSeconds: e.target.value})}
-                className="bg-black/50 border-border font-mono text-sm"
+                className="bg-muted/50 border-border font-mono text-sm"
                 min="0"
                 max="86400"
               />

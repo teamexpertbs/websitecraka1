@@ -217,7 +217,7 @@ function ResultViewer({
         {display.length === 0 ? (
           <div className="text-muted-foreground text-sm py-4 text-center">No data returned.</div>
         ) : rawText ? (
-          <div className="rounded-md bg-black/40 border border-border/30 p-4">
+          <div className="rounded-md bg-muted/40 border border-border/30 p-4">
             <pre className="text-sm text-foreground whitespace-pre-wrap break-words font-mono leading-relaxed">{rawText}</pre>
           </div>
         ) : display.map((row) => {
@@ -227,7 +227,7 @@ function ResultViewer({
           return (
             <div
               key={row.key}
-              className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 py-2 px-3 rounded-md bg-black/30 border border-border/30 hover:border-primary/20 transition-all"
+              className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 py-2 px-3 rounded-md bg-muted/30 border border-border/30 hover:border-primary/20 transition-all"
             >
               <div className="flex items-center justify-between sm:justify-start gap-2 sm:w-36 sm:flex-shrink-0">
                 <span className="text-[10px] font-bold text-primary/60 uppercase tracking-widest leading-5 truncate">
@@ -361,16 +361,16 @@ export default function Home() {
 
   return (
     <Layout>
-      <div className="max-w-5xl mx-auto space-y-6">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-primary flex items-center gap-3">
-            <Terminal className="w-8 h-8" />
+      <div className="max-w-5xl mx-auto space-y-5">
+        <header className="mb-5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary flex items-center gap-3">
+            <Terminal className="w-7 h-7 sm:w-8 sm:h-8" />
             Command Center
           </h1>
-          <p className="text-muted-foreground mt-2">Initialize target acquisition protocol.</p>
+          <p className="text-muted-foreground mt-1.5 text-sm">Initialize target acquisition protocol.</p>
         </header>
 
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4">
           {CATEGORIES.map(cat => (
             <Badge
               key={cat}
@@ -383,8 +383,8 @@ export default function Home() {
           ))}
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          <div className="md:col-span-1 order-2 md:order-1 space-y-4 max-h-[600px] overflow-y-auto pr-2">
+        <div className="grid md:grid-cols-3 gap-4 sm:gap-6">
+          <div className="md:col-span-1 order-2 md:order-1 space-y-3 max-h-[400px] md:max-h-[600px] overflow-y-auto pr-1">
             {isLoadingApis ? (
               <div className="space-y-3">
                 {[1,2,3,4,5].map(i => (
@@ -422,7 +422,7 @@ export default function Home() {
 
           <div className="md:col-span-2 order-1 md:order-2 space-y-6">
             <Card className="border-border shadow-lg bg-card/80 backdrop-blur">
-              <CardHeader className="border-b border-border bg-black/20 pb-4">
+              <CardHeader className="border-b border-border bg-muted/20 pb-4">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Cpu className="w-5 h-5 text-primary" />
                   {selectedApi ? `Target: ${selectedApi.name}` : "Select a target vector"}
@@ -451,7 +451,7 @@ export default function Home() {
                       onKeyDown={(e) => e.key === "Enter" && handleLookup()}
                       disabled={!selectedApi || performLookup.isPending}
                       placeholder={selectedApi ? `Enter ${selectedApi.example}...` : "Awaiting vector selection..."}
-                      className="pl-10 bg-black/50 border-border focus-visible:ring-primary font-mono"
+                      className="pl-10 bg-muted/50 border-border focus-visible:ring-primary font-mono"
                       autoComplete="off"
                       spellCheck="false"
                     />
@@ -482,7 +482,7 @@ export default function Home() {
                 <CardContent className="p-6">
                   <div className="space-y-2">
                     {[1,2,3,4].map(i => (
-                      <div key={i} className="h-8 bg-black/40 rounded w-full" style={{ width: `${85 - i * 10}%` }} />
+                      <div key={i} className="h-8 bg-muted/40 rounded w-full" style={{ width: `${85 - i * 10}%` }} />
                     ))}
                   </div>
                 </CardContent>

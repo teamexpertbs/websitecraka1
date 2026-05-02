@@ -116,7 +116,7 @@ export default function Transactions() {
         </div>
 
         <Card className="bg-card border-border overflow-hidden">
-          <CardHeader className="bg-black/30 border-b border-border">
+          <CardHeader className="bg-muted/30 border-b border-border">
             <CardTitle className="text-base">History</CardTitle>
             <CardDescription>Showing last {txns.length} transactions</CardDescription>
           </CardHeader>

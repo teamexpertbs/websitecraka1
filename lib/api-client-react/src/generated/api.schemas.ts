@@ -144,6 +144,7 @@ export interface SuccessResponse {
 export type GetHistoryParams = {
   limit?: number;
   page?: number;
+  sessionId?: string;
 };
 
 export type AdminGetHistoryParams = {

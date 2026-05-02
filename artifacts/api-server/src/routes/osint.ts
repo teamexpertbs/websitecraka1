@@ -206,7 +206,7 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
   if (cached[0]) {
     let data = JSON.parse(cached[0].result) as Record<string, unknown>;
     data = injectDeveloperCredit(data);
-    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true });
+    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true, sessionId });
     res.json({ data, cached: true, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
     return;
   }
@@ -249,7 +249,7 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
         "Source": "TRAI Numbering Plan (Built-in)",
       });
       await db.insert(osintCache).values({ slug, queryVal: query, result: JSON.stringify(fallbackData) }).onConflictDoNothing();
-      await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true });
+      await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true, sessionId });
       res.json({ data: fallbackData, cached: false, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
       return;
     }
@@ -257,7 +257,7 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
     const isActualFailure = statusCode >= 400 || isEmpty || hasRealError || hasStatusFalse || isProtected || isInvalidApiResponse;
 
     if (isActualFailure) {
-      await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
+      await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false, sessionId });
       if (!isUnlimited) {
         // Refund tokens
         const [refunded] = await db.update(crakaUsers)
@@ -279,11 +279,11 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
     const data = injectDeveloperCredit(rawData);
     
     await db.insert(osintCache).values({ slug, queryVal: query, result: JSON.stringify(data) }).onConflictDoNothing();
-    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true });
+    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true, sessionId });
     
     res.json({ data, cached: false, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
   } catch (err) {
-    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
+    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false, sessionId });
     if (!isUnlimited) {
       // Refund tokens on catch error
       const [refunded] = await db.update(crakaUsers)
@@ -306,10 +306,19 @@ router.get("/osint/history", async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const page = Math.max(Number(req.query.page) || 1, 1);
   const offset = (page - 1) * limit;
-  
+  const sessionId = String(req.query.sessionId || "").trim();
+
+  if (!sessionId) {
+    res.status(400).json({ error: "sessionId required" });
+    return;
+  }
+
   const [entries, totalResult] = await Promise.all([
-    db.select().from(osintHistory).orderBy(desc(osintHistory.createdAt)).limit(limit).offset(offset),
-    db.select({ count: sql<number>`count(*)` }).from(osintHistory),
+    db.select().from(osintHistory)
+      .where(eq(osintHistory.sessionId, sessionId))
+      .orderBy(desc(osintHistory.createdAt)).limit(limit).offset(offset),
+    db.select({ count: sql<number>`count(*)` }).from(osintHistory)
+      .where(eq(osintHistory.sessionId, sessionId)),
   ]);
   
   res.json({

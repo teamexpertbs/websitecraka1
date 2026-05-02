@@ -5,7 +5,6 @@ import {
   History,
   BarChart2,
   Wrench,
-  Shield,
   LogOut,
   Crown,
   Gift,
@@ -45,7 +44,6 @@ export function Layout({ children }: LayoutProps) {
     { href: "/stats",        labelKey: "nav.stats",        fallback: "Stats",        icon: BarChart2 },
     { href: "/tools",        labelKey: "nav.tools",        fallback: "Tools",        icon: Wrench },
     { href: "/transactions", labelKey: "nav.transactions", fallback: "Transactions", icon: Receipt },
-    { href: "/admin",        labelKey: "nav.admin",        fallback: "Admin Panel",  icon: Shield },
   ];
 
   const ThemeAndLangControls = (

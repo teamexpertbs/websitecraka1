@@ -12,7 +12,7 @@ export function TokenBadge({ compact = false }: Props) {
   if (isLoading || !user) {
     return (
       <div
-        className={`flex items-center gap-1.5 rounded-lg border border-border/60 bg-black/30 ${compact ? "px-2 py-1" : "px-3 py-1.5"}`}
+        className={`flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/30 ${compact ? "px-2 py-1" : "px-3 py-1.5"}`}
       >
         <div className="w-3 h-3 rounded-full bg-muted animate-pulse" />
         <span className="text-[10px] text-muted-foreground font-mono">...</span>
@@ -43,7 +43,7 @@ export function TokenBadge({ compact = false }: Props) {
   return (
     <Link href="/premium">
       <div
-        className={`inline-flex items-center gap-2 rounded-lg border bg-black/40 backdrop-blur cursor-pointer hover:border-primary/40 hover:shadow-[0_0_10px_rgba(0,217,255,0.15)] transition-all ${compact ? "px-2 py-1" : "px-2.5 py-1.5"} border-border/60`}
+        className={`inline-flex items-center gap-2 rounded-lg border bg-muted/40 backdrop-blur cursor-pointer hover:border-primary/40 hover:shadow-[0_0_10px_rgba(0,217,255,0.15)] transition-all ${compact ? "px-2 py-1" : "px-2.5 py-1.5"} border-border/60`}
         title={
           unlimited
             ? "Elite plan — Unlimited searches"

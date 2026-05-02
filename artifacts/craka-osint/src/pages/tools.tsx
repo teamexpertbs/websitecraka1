@@ -36,7 +36,7 @@ export default function Tools() {
               placeholder="Search tools..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 bg-black/30 border-border"
+              className="pl-9 bg-muted/30 border-border"
             />
           </div>
         </header>
@@ -64,7 +64,7 @@ export default function Tools() {
                       <div key={api.id} className="p-5 rounded-md border border-border bg-card/50 hover:bg-card hover:border-primary/50 transition-all group">
                         <div className="flex justify-between items-start mb-3">
                           <h3 className="font-bold text-primary text-lg group-hover:text-glow transition-all">{api.name}</h3>
-                          <Badge variant="outline" className="bg-black/50 border-border text-xs">
+                          <Badge variant="outline" className="bg-muted/50 border-border text-xs">
                             {api.credits}c
                           </Badge>
                         </div>

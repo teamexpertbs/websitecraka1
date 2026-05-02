@@ -9,7 +9,7 @@ interface JsonViewerProps {
 
 export function JsonViewer({ data, className }: JsonViewerProps) {
   return (
-    <div className={cn("font-mono text-sm space-y-1 p-4 bg-black/50 rounded-md border border-border/50", className)}>
+    <div className={cn("font-mono text-sm space-y-1 p-4 bg-muted/50 rounded-md border border-border/50", className)}>
       <div className="text-muted-foreground mb-2">{"{"}</div>
       {Object.entries(data).map(([key, value]) => (
         <JsonNode key={key} nodeKey={key} value={value} depth={1} />

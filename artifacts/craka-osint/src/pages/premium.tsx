@@ -194,7 +194,7 @@ export default function Premium() {
                   <span className="text-4xl font-black text-foreground">{plan.price}</span>
                   <span className="text-sm text-muted-foreground mb-1">{plan.period}</span>
                 </div>
-                <div className={`mt-2 text-sm font-black ${plan.accent} bg-black/20 inline-block px-3 py-1 rounded-full border border-current/20`}>
+                <div className={`mt-2 text-sm font-black ${plan.accent} bg-muted/20 inline-block px-3 py-1 rounded-full border border-current/20`}>
                   {plan.tokens}
                 </div>
               </div>

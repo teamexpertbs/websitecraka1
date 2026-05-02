@@ -27,6 +27,7 @@ export const osintHistory = pgTable("osint_history", {
   apiName: text("api_name").notNull(),
   queryVal: text("query_val").notNull(),
   success: boolean("success").notNull().default(true),
+  sessionId: text("session_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

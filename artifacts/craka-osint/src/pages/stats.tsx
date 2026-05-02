@@ -24,12 +24,12 @@ export default function Stats() {
   return (
     <Layout>
       <div className="max-w-6xl mx-auto space-y-6">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-primary flex items-center gap-3">
-            <BarChart2 className="w-8 h-8" />
+        <header className="mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary flex items-center gap-3">
+            <BarChart2 className="w-7 h-7 sm:w-8 sm:h-8" />
             System Telemetry
           </h1>
-          <p className="text-muted-foreground mt-2">Real-time performance and usage metrics.</p>
+          <p className="text-muted-foreground mt-1.5 text-sm">Real-time performance and usage metrics.</p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -126,7 +126,7 @@ function StatCard({ title, value, icon: Icon, color }: { title: string, value: s
           <p className="text-sm font-medium text-muted-foreground mb-1">{title}</p>
           <h3 className={`text-3xl font-bold ${color} text-glow`}>{value}</h3>
         </div>
-        <div className={`p-3 rounded-full bg-black/40 border border-border ${color}`}>
+        <div className={`p-3 rounded-full bg-muted/40 border border-border ${color}`}>
           <Icon className="w-6 h-6" />
         </div>
       </CardContent>

@@ -78,7 +78,7 @@ export function BuyTokensModal({ open, onClose, currentTokens, needTokens, reaso
             </div>
           </div>
 
-          <div className="rounded-xl bg-black/40 border border-border/60 p-3 mb-4 flex items-center justify-between">
+          <div className="rounded-xl bg-muted/40 border border-border/60 p-3 mb-4 flex items-center justify-between">
             <div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Tumhare Tokens</div>
               <div className={`text-2xl font-black ${currentTokens > 0 ? "text-yellow-400" : "text-destructive"}`}>
@@ -105,7 +105,7 @@ export function BuyTokensModal({ open, onClose, currentTokens, needTokens, reaso
               <button
                 key={p.name}
                 onClick={goToPremium}
-                className={`relative rounded-xl border ${p.border} bg-black/40 p-3 text-left hover:scale-[1.02] transition-all ${p.highlight ? "shadow-[0_0_20px_rgba(250,204,21,0.2)]" : ""}`}
+                className={`relative rounded-xl border ${p.border} bg-muted/40 p-3 text-left hover:scale-[1.02] transition-all ${p.highlight ? "shadow-[0_0_20px_rgba(250,204,21,0.2)]" : ""}`}
               >
                 {p.highlight && (
                   <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] font-black bg-gradient-to-r from-yellow-500 to-yellow-300 text-black px-1.5 py-0.5 rounded-full whitespace-nowrap">
