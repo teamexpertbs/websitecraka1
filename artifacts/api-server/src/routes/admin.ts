@@ -1,14 +1,20 @@
 import { Router } from "express";
-import { db, osintApis, osintHistory, osintCache, crakaUsers } from "@workspace/db";
+import { db, osintApis, osintHistory, osintCache, crakaUsers, loginLogs } from "@workspace/db";
 import { eq, sql, desc, gt } from "drizzle-orm";
 import { generateToken, adminAuthMiddleware, refreshTokenHandler } from "../lib/jwt";
 import { AdminLoginSchema, AdminCreateApiSchema, AdminGrantPremiumSchema, formatValidationError } from "../lib/validation";
 import { logTokenTxn } from "../lib/tokenLog";
+import { generateTotpSecret, verifyTotp, generateQrCodeDataUrl } from "../lib/totp";
 
 const router = Router();
 
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
 const ADMIN_PASS = process.env.ADMIN_PASS || "craka@admin123";
+
+// In-memory TOTP secret store (persisted via env ADMIN_2FA_SECRET)
+function getAdmin2FaSecret(): string | null {
+  return process.env.ADMIN_2FA_SECRET || null;
+}
 
 router.post("/admin/login", async (req, res) => {
   const validation = AdminLoginSchema.safeParse(req.body);
@@ -18,20 +24,29 @@ router.post("/admin/login", async (req, res) => {
   }
 
   const { username, password } = validation.data;
-  const ADMIN_USER = process.env.ADMIN_USER || "admin";
-  const ADMIN_PASS = process.env.ADMIN_PASS || "craka@admin123";
+  const totpToken: string | undefined = (req.body as any).totpToken;
 
-  if (username === ADMIN_USER && password === ADMIN_PASS) {
-    const token = generateToken(username);
-    res.json({ 
-      success: true, 
-      token, 
-      expiresIn: "8h",
-      message: "Login successful" 
-    });
-  } else {
+  if (username !== ADMIN_USER || password !== ADMIN_PASS) {
     res.status(401).json({ success: false, message: "Invalid credentials" });
+    return;
   }
+
+  const secret = getAdmin2FaSecret();
+  if (secret) {
+    // 2FA is enabled — require TOTP
+    if (!totpToken) {
+      res.status(200).json({ success: false, requires2FA: true, message: "2FA code required" });
+      return;
+    }
+    const valid = verifyTotp(secret, totpToken);
+    if (!valid) {
+      res.status(401).json({ success: false, message: "Invalid 2FA code" });
+      return;
+    }
+  }
+
+  const token = generateToken(username);
+  res.json({ success: true, token, expiresIn: "8h", message: "Login successful" });
 });
 
 router.post("/admin/refresh-token", refreshTokenHandler);
@@ -301,6 +316,10 @@ router.get("/admin/users", adminAuthMiddleware, async (req, res) => {
   const users = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.createdAt)).limit(50);
   res.json(users.map(u => ({
     referralCode: u.referralCode,
+    email: u.email,
+    displayName: u.displayName,
+    avatarUrl: u.avatarUrl,
+    emailVerified: u.emailVerified,
     isPremium: u.isPremium,
     premiumPlan: u.premiumPlan,
     premiumExpiresAt: u.premiumExpiresAt ? u.premiumExpiresAt.toISOString() : null,
@@ -308,6 +327,59 @@ router.get("/admin/users", adminAuthMiddleware, async (req, res) => {
     creditsEarned: u.creditsEarned,
     createdAt: u.createdAt.toISOString(),
   })));
+});
+
+/** GET /api/admin/login-logs — last 200 login events */
+router.get("/admin/login-logs", adminAuthMiddleware, async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 100, 200);
+  const logs = await db
+    .select()
+    .from(loginLogs)
+    .orderBy(desc(loginLogs.createdAt))
+    .limit(limit);
+  res.json(logs.map(l => ({
+    id: l.id,
+    sessionId: l.sessionId,
+    email: l.email,
+    ipAddress: l.ipAddress,
+    userAgent: l.userAgent,
+    status: l.status,
+    method: l.method,
+    createdAt: l.createdAt.toISOString(),
+  })));
+});
+
+/** POST /api/admin/2fa/setup — generate TOTP secret + QR code */
+router.post("/admin/2fa/setup", adminAuthMiddleware, async (req, res) => {
+  const secret = generateTotpSecret(ADMIN_USER);
+  const qrCode = await generateQrCodeDataUrl(secret.otpauth_url!);
+  res.json({
+    secret: secret.base32,
+    otpauthUrl: secret.otpauth_url,
+    qrCode,
+    instructions: `Scan this QR code with Google Authenticator, then set ADMIN_2FA_SECRET=${secret.base32} as a Replit Secret.`,
+  });
+});
+
+/** POST /api/admin/2fa/verify — verify TOTP before saving secret */
+router.post("/admin/2fa/verify", adminAuthMiddleware, async (req, res) => {
+  const { secret, token } = req.body as { secret?: string; token?: string };
+  if (!secret || !token) {
+    res.status(400).json({ error: "secret and token are required" });
+    return;
+  }
+  const valid = verifyTotp(secret, token);
+  if (!valid) {
+    res.status(400).json({ valid: false, message: "Invalid TOTP code. Try again." });
+    return;
+  }
+  res.json({ valid: true, message: "Code verified! Now save the ADMIN_2FA_SECRET in Replit Secrets to enable 2FA." });
+});
+
+/** GET /api/admin/2fa/status */
+router.get("/admin/2fa/status", adminAuthMiddleware, async (req, res) => {
+  const secret = getAdmin2FaSecret();
+  res.json({ enabled: !!secret });
 });
 
 export default router;

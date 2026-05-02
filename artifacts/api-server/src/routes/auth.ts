@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { OAuth2Client } from "google-auth-library";
 import jwt from "jsonwebtoken";
-import { db, crakaUsers } from "@workspace/db";
-import { eq, or } from "drizzle-orm";
+import { db, crakaUsers, loginLogs } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { logTokenTxn } from "../lib/tokenLog";
 
@@ -183,6 +183,21 @@ router.post("/auth/google", async (req, res): Promise<void> => {
         .returning();
       user = updated;
     }
+
+    // Mark email as verified (Google already verified it)
+    if (!user.emailVerified) {
+      await db.update(crakaUsers).set({ emailVerified: true }).where(eq(crakaUsers.id, user.id));
+    }
+
+    // Log the login
+    await db.insert(loginLogs).values({
+      sessionId: user.sessionId,
+      email: user.email ?? email,
+      ipAddress: req.ip ?? (req.headers["x-forwarded-for"] as string) ?? null,
+      userAgent: req.headers["user-agent"] ?? null,
+      status: "success",
+      method: "google",
+    });
 
     const token = generateUserToken({
       sessionId: user.sessionId,

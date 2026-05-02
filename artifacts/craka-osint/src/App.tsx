@@ -16,6 +16,7 @@ import Premium from "@/pages/premium";
 import Refer from "@/pages/refer";
 import Transactions from "@/pages/transactions";
 import Login from "@/pages/login";
+import ForgotPassword from "@/pages/forgot-password";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/forgot-password" component={ForgotPassword} />
       <Route>
         <AuthGuard>
           <Switch>

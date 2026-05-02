@@ -139,10 +139,19 @@ export default function Login() {
 
             <button
               onClick={() => setLocation("/")}
-              className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 pb-1"
+              className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
             >
               Continue as guest (limited features)
             </button>
+
+            {tab === "signin" && (
+              <button
+                onClick={() => setLocation("/forgot-password")}
+                className="w-full text-center text-[11px] text-muted-foreground/60 hover:text-primary transition-colors pb-1"
+              >
+                Forgot / lost access? Recover via email →
+              </button>
+            )}
           </div>
         </div>
 

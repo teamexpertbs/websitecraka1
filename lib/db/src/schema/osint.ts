@@ -61,8 +61,28 @@ export const crakaUsers = pgTable("craka_users", {
   email: text("email"),
   displayName: text("display_name"),
   avatarUrl: text("avatar_url"),
+  // Email verification & magic link
+  emailVerified: boolean("email_verified").notNull().default(false),
+  magicLinkToken: text("magic_link_token"),
+  magicLinkExpiry: timestamp("magic_link_expiry"),
+  // Admin 2FA
+  twoFaSecret: text("two_fa_secret"),
+  twoFaEnabled: boolean("two_fa_enabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const loginLogs = pgTable("login_logs", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  email: text("email"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  status: text("status").notNull().default("success"),
+  method: text("method").notNull().default("google"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type LoginLog = typeof loginLogs.$inferSelect;
 
 export const insertCrakaUserSchema = createInsertSchema(crakaUsers).omit({ id: true, createdAt: true });
 export type InsertCrakaUser = z.infer<typeof insertCrakaUserSchema>;
