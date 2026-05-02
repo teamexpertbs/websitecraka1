@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Shield, Lock, Activity, Database, Trash2, Plus, Edit2, KeyRound, Crown, Check, Users, HeartPulse, RefreshCw, Smartphone, FileText, CheckCircle, XCircle, Globe, Clock } from "lucide-react";
+import { Shield, Lock, Activity, Database, Trash2, Plus, Edit2, KeyRound, Crown, Check, Users, HeartPulse, RefreshCw, Smartphone, FileText, CheckCircle, XCircle, Globe, Clock, Ban, Coins, Megaphone, AlertTriangle, Info, Bell, Send } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 function AdminLayout({ children, minimal }: { children: React.ReactNode; minimal?: boolean }) {
@@ -255,6 +255,24 @@ function AdminDashboard() {
   const [granting, setGranting] = useState(false);
   const [showRecentExecutions, setShowRecentExecutions] = useState(false);
 
+  // Ban/Unban state
+  const [banReason, setBanReason] = useState("");
+  const [banningCode, setBanningCode] = useState<string | null>(null);
+
+  // Token adjust state
+  const [tokenAdjustCode, setTokenAdjustCode] = useState("");
+  const [tokenAdjustAmount, setTokenAdjustAmount] = useState("");
+  const [tokenAdjustReason, setTokenAdjustReason] = useState("");
+  const [tokenAdjusting, setTokenAdjusting] = useState(false);
+
+  // Broadcast state
+  const [broadcasts, setBroadcasts] = useState<any[]>([]);
+  const [broadcastTitle, setBroadcastTitle] = useState("");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcastType, setBroadcastType] = useState("info");
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastsLoading, setBroadcastsLoading] = useState(false);
+
   const [apiHealth, setApiHealth] = useState<any[]>([]);
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -276,12 +294,105 @@ function AdminDashboard() {
     }
   };
 
+  const fetchBroadcasts = async () => {
+    setBroadcastsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/broadcasts`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setBroadcasts(Array.isArray(data) ? data : []);
+    } catch { /* silent */ } finally { setBroadcastsLoading(false); }
+  };
+
   useEffect(() => {
     if (token) {
       fetchUsers();
       fetchApiHealth();
+      fetchBroadcasts();
     }
   }, [token]);
+
+  const handleBanUser = async (referralCode: string, reason: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/ban-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ referralCode, reason: reason || "Banned by admin" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "User Banned", description: data.message });
+        refreshUsers();
+      } else {
+        toast({ title: "Error", description: data.error, variant: "destructive" });
+      }
+    } catch { toast({ title: "Error", description: "Network error", variant: "destructive" }); }
+  };
+
+  const handleUnbanUser = async (referralCode: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/unban-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ referralCode }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "User Unbanned", description: data.message });
+        refreshUsers();
+      } else {
+        toast({ title: "Error", description: data.error, variant: "destructive" });
+      }
+    } catch { toast({ title: "Error", description: "Network error", variant: "destructive" }); }
+  };
+
+  const handleAdjustTokens = async () => {
+    if (!tokenAdjustCode.trim() || !tokenAdjustAmount) return;
+    setTokenAdjusting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/adjust-tokens`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ referralCode: tokenAdjustCode.trim().toUpperCase(), amount: Number(tokenAdjustAmount), reason: tokenAdjustReason || "Admin adjustment" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Tokens Adjusted", description: data.message });
+        setTokenAdjustCode(""); setTokenAdjustAmount(""); setTokenAdjustReason("");
+        refreshUsers();
+      } else {
+        toast({ title: "Error", description: data.error, variant: "destructive" });
+      }
+    } catch { toast({ title: "Error", description: "Network error", variant: "destructive" }); }
+    finally { setTokenAdjusting(false); }
+  };
+
+  const handleSendBroadcast = async () => {
+    if (!broadcastTitle.trim() || !broadcastMessage.trim()) return;
+    setBroadcastSending(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/broadcast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title: broadcastTitle.trim(), message: broadcastMessage.trim(), type: broadcastType }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Broadcast Sent!", description: data.message });
+        setBroadcastTitle(""); setBroadcastMessage(""); setBroadcastType("info");
+        fetchBroadcasts();
+      } else {
+        toast({ title: "Error", description: data.error, variant: "destructive" });
+      }
+    } catch { toast({ title: "Error", description: "Network error", variant: "destructive" }); }
+    finally { setBroadcastSending(false); }
+  };
+
+  const handleDeleteBroadcast = async (id: number) => {
+    try {
+      await fetch(`${API_BASE}/api/admin/broadcasts/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      fetchBroadcasts();
+    } catch { /* silent */ }
+  };
 
   const handleGrantPremium = async () => {
     if (!grantCode.trim()) return;
@@ -424,48 +535,111 @@ function AdminDashboard() {
             <Table>
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
-                  <TableHead>Referral</TableHead>
-                  <TableHead>Premium</TableHead>
+                  <TableHead>User</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Plan</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead>Referrals</TableHead>
                   <TableHead>Credits</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Referrals</TableHead>
+                  <TableHead>Joined</TableHead>
+                  <TableHead className="text-right min-w-[220px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {users.length === 0 && !usersLoading ? (
                   <TableRow className="border-border hover:bg-muted/30">
                     <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">
-                      {usersError || "No users available."}
+                      {usersError || "No users yet."}
                     </TableCell>
                   </TableRow>
                 ) : (
                   users.map((user) => (
-                    <TableRow key={user.referralCode} className="border-border hover:bg-muted/30">
-                      <TableCell className="font-mono text-xs">{user.referralCode}</TableCell>
+                    <TableRow key={user.referralCode} className={`border-border hover:bg-muted/30 ${user.isBanned ? "bg-destructive/5" : ""}`}>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={user.isPremium ? "border-emerald-500 text-emerald-300" : "border-zinc-600 text-muted-foreground"}
-                        >
-                          {user.isPremium ? "YES" : "NO"}
-                        </Badge>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-mono text-xs text-foreground font-semibold">{user.referralCode}</span>
+                          {user.email && <span className="text-[10px] text-muted-foreground truncate max-w-[130px]">{user.email}</span>}
+                          {user.displayName && <span className="text-[10px] text-primary/70">{user.displayName}</span>}
+                        </div>
                       </TableCell>
-                      <TableCell>{user.premiumPlan || "—"}</TableCell>
-                      <TableCell>{user.premiumExpiresAt ? new Date(user.premiumExpiresAt).toLocaleDateString() : "—"}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          {user.isBanned ? (
+                            <Badge variant="outline" className="border-red-500 text-red-400 bg-red-500/10 text-[10px]">BANNED</Badge>
+                          ) : user.isPremium ? (
+                            <Badge variant="outline" className="border-emerald-500 text-emerald-400 bg-emerald-500/10 text-[10px]">PREMIUM</Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-zinc-600 text-muted-foreground text-[10px]">FREE</Badge>
+                          )}
+                          {user.isBanned && user.banReason && (
+                            <span className="text-[9px] text-red-400/70 max-w-[100px] truncate">{user.banReason}</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">{user.premiumPlan || "—"}</TableCell>
+                      <TableCell>
+                        <span className="font-mono text-sm font-bold text-primary">{user.creditsEarned}</span>
+                      </TableCell>
                       <TableCell>{user.totalReferrals}</TableCell>
-                      <TableCell>{user.creditsEarned}</TableCell>
-                      <TableCell className="text-right space-x-2">
-                        {user.isPremium ? (
-                          <Button variant="outline" size="sm" onClick={() => handleRevokePremium(user.referralCode)} className="h-8">
-                            Revoke
+                      <TableCell className="text-xs text-muted-foreground">{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-1 justify-end flex-wrap">
+                          {user.isPremium ? (
+                            <Button variant="outline" size="sm" onClick={() => handleRevokePremium(user.referralCode)} className="h-7 text-xs px-2">
+                              Revoke
+                            </Button>
+                          ) : (
+                            <Button variant="secondary" size="sm" onClick={() => { setGrantCode(user.referralCode); setGrantPlan("Basic"); }} className="h-7 text-xs px-2">
+                              <Crown className="w-3 h-3 mr-1" />Grant
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost" size="sm"
+                            onClick={() => { setTokenAdjustCode(user.referralCode); }}
+                            className="h-7 text-xs px-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-400/10"
+                            title="Adjust tokens"
+                          >
+                            <Coins className="w-3 h-3" />
                           </Button>
-                        ) : (
-                          <Button variant="secondary" size="sm" onClick={() => { setGrantCode(user.referralCode); setGrantPlan("Basic"); }} className="h-8">
-                            Grant
-                          </Button>
-                        )}
+                          {user.isBanned ? (
+                            <Button
+                              variant="ghost" size="sm"
+                              onClick={() => handleUnbanUser(user.referralCode)}
+                              className="h-7 text-xs px-2 text-emerald-400 hover:bg-emerald-400/10"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />Unban
+                            </Button>
+                          ) : (
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 text-xs px-2 text-destructive hover:bg-destructive/10">
+                                  <Ban className="w-3 h-3 mr-1" />Ban
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="bg-card border-border">
+                                <DialogHeader>
+                                  <DialogTitle className="text-destructive flex items-center gap-2"><Ban className="w-4 h-4" />Ban User — {user.referralCode}</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-3 py-2">
+                                  <Label className="text-xs font-mono text-muted-foreground">Ban Reason (optional)</Label>
+                                  <Input
+                                    placeholder="e.g. Spam, abuse, TOS violation..."
+                                    value={banningCode === user.referralCode ? banReason : ""}
+                                    onChange={e => { setBanningCode(user.referralCode); setBanReason(e.target.value); }}
+                                    className="bg-muted/50 border-border"
+                                  />
+                                </div>
+                                <DialogFooter>
+                                  <Button
+                                    variant="destructive"
+                                    onClick={() => { handleBanUser(user.referralCode, banningCode === user.referralCode ? banReason : ""); setBanReason(""); setBanningCode(null); }}
+                                  >
+                                    <Ban className="w-4 h-4 mr-2" />Confirm Ban
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -755,6 +929,151 @@ function AdminDashboard() {
           </Table>
           </div>
           )}
+        </Card>
+
+        {/* Token Adjustment */}
+        <Card className="bg-gradient-to-r from-yellow-900/10 to-yellow-700/10 border-yellow-600/30 overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b border-yellow-600/20 pb-4">
+            <CardTitle className="text-lg flex items-center gap-2 text-yellow-400">
+              <Coins className="w-5 h-5" />
+              Adjust User Tokens
+            </CardTitle>
+            <CardDescription className="text-muted-foreground text-sm">
+              Kisi bhi user ke tokens manually add ya deduct karo. Negative value for deduction.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-5">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">User ID</Label>
+                <Input
+                  value={tokenAdjustCode}
+                  onChange={e => setTokenAdjustCode(e.target.value.toUpperCase())}
+                  placeholder="CRAKA-XXXXXX"
+                  className="bg-muted/50 border-yellow-600/30 font-mono uppercase"
+                />
+              </div>
+              <div className="sm:w-32">
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Amount</Label>
+                <Input
+                  type="number"
+                  value={tokenAdjustAmount}
+                  onChange={e => setTokenAdjustAmount(e.target.value)}
+                  placeholder="+100 or -50"
+                  className="bg-muted/50 border-yellow-600/30 font-mono"
+                />
+              </div>
+              <div className="flex-1">
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Reason</Label>
+                <Input
+                  value={tokenAdjustReason}
+                  onChange={e => setTokenAdjustReason(e.target.value)}
+                  placeholder="Reason (optional)"
+                  className="bg-muted/50 border-yellow-600/30"
+                />
+              </div>
+              <div className="sm:self-end">
+                <Button
+                  onClick={handleAdjustTokens}
+                  disabled={tokenAdjusting || !tokenAdjustCode.trim() || !tokenAdjustAmount}
+                  className="w-full sm:w-auto bg-yellow-600 hover:bg-yellow-500 text-black font-bold h-10 px-5"
+                >
+                  {tokenAdjusting ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <><Coins className="w-4 h-4 mr-2" />Apply</>}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Broadcast */}
+        <Card className="bg-gradient-to-r from-blue-900/10 to-blue-700/10 border-blue-500/30 overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b border-blue-500/20 pb-4">
+            <CardTitle className="text-lg flex items-center gap-2 text-blue-400">
+              <Megaphone className="w-5 h-5" />
+              Broadcast to All Users
+            </CardTitle>
+            <CardDescription className="text-muted-foreground text-sm">
+              Saare users ko ek notification/announcement bhejo. Users ke home page pe dikhega.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Title</Label>
+                <Input
+                  value={broadcastTitle}
+                  onChange={e => setBroadcastTitle(e.target.value)}
+                  placeholder="Announcement title..."
+                  className="bg-muted/50 border-blue-500/30"
+                />
+              </div>
+              <div className="sm:w-32">
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Type</Label>
+                <select
+                  value={broadcastType}
+                  onChange={e => setBroadcastType(e.target.value)}
+                  className="w-full h-10 rounded-md border border-blue-500/30 bg-muted/50 text-foreground px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                >
+                  <option value="info">Info</option>
+                  <option value="success">Success</option>
+                  <option value="warning">Warning</option>
+                  <option value="danger">Danger</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Message</Label>
+              <textarea
+                value={broadcastMessage}
+                onChange={e => setBroadcastMessage(e.target.value)}
+                placeholder="Broadcast message yahan likhein..."
+                rows={3}
+                className="w-full rounded-md border border-blue-500/30 bg-muted/50 text-foreground px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSendBroadcast}
+                disabled={broadcastSending || !broadcastTitle.trim() || !broadcastMessage.trim()}
+                className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6"
+              >
+                {broadcastSending ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                Send Broadcast
+              </Button>
+            </div>
+
+            {/* Broadcast history */}
+            {broadcasts.length > 0 && (
+              <div className="mt-4 border-t border-blue-500/20 pt-4">
+                <p className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-3">Sent Broadcasts</p>
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {broadcasts.map(b => (
+                    <div key={b.id} className={`flex items-start gap-3 p-3 rounded-lg border text-sm ${
+                      b.type === "success" ? "border-emerald-500/30 bg-emerald-500/5" :
+                      b.type === "warning" ? "border-yellow-500/30 bg-yellow-500/5" :
+                      b.type === "danger" ? "border-red-500/30 bg-red-500/5" :
+                      "border-blue-500/30 bg-blue-500/5"
+                    }`}>
+                      <div className="mt-0.5">
+                        {b.type === "success" ? <CheckCircle className="w-4 h-4 text-emerald-400" /> :
+                         b.type === "warning" ? <AlertTriangle className="w-4 h-4 text-yellow-400" /> :
+                         b.type === "danger" ? <XCircle className="w-4 h-4 text-red-400" /> :
+                         <Info className="w-4 h-4 text-blue-400" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-foreground">{b.title}</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">{b.message}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1">{new Date(b.createdAt).toLocaleString()}</p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => handleDeleteBroadcast(b.id)} className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
         </Card>
 
         <LoginLogsSection />

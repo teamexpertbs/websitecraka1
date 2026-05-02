@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, osintApis, osintHistory, osintCache, crakaUsers, loginLogs } from "@workspace/db";
+import { db, osintApis, osintHistory, osintCache, crakaUsers, loginLogs, broadcasts } from "@workspace/db";
 import { eq, sql, desc, gt } from "drizzle-orm";
 import { generateToken, adminAuthMiddleware, refreshTokenHandler } from "../lib/jwt";
 import { AdminLoginSchema, AdminCreateApiSchema, AdminGrantPremiumSchema, formatValidationError } from "../lib/validation";
@@ -363,7 +363,7 @@ router.post("/admin/revoke-premium", adminAuthMiddleware, async (req, res) => {
 });
 
 router.get("/admin/users", adminAuthMiddleware, async (req, res) => {
-  const users = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.createdAt)).limit(50);
+  const users = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.createdAt)).limit(200);
   res.json(users.map(u => ({
     referralCode: u.referralCode,
     email: u.email,
@@ -375,8 +375,78 @@ router.get("/admin/users", adminAuthMiddleware, async (req, res) => {
     premiumExpiresAt: u.premiumExpiresAt ? u.premiumExpiresAt.toISOString() : null,
     totalReferrals: u.totalReferrals,
     creditsEarned: u.creditsEarned,
+    isBanned: u.isBanned,
+    banReason: u.banReason,
     createdAt: u.createdAt.toISOString(),
   })));
+});
+
+/** POST /api/admin/ban-user */
+router.post("/admin/ban-user", adminAuthMiddleware, async (req, res) => {
+  const code = String(req.body?.referralCode || "").trim().toUpperCase();
+  const reason = String(req.body?.reason || "Banned by admin").trim();
+  if (!code) { res.status(400).json({ error: "referralCode required" }); return; }
+  const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  await db.update(crakaUsers).set({ isBanned: true, banReason: reason }).where(eq(crakaUsers.referralCode, code));
+  res.json({ success: true, message: `User ${code} banned.` });
+});
+
+/** POST /api/admin/unban-user */
+router.post("/admin/unban-user", adminAuthMiddleware, async (req, res) => {
+  const code = String(req.body?.referralCode || "").trim().toUpperCase();
+  if (!code) { res.status(400).json({ error: "referralCode required" }); return; }
+  await db.update(crakaUsers).set({ isBanned: false, banReason: null }).where(eq(crakaUsers.referralCode, code));
+  res.json({ success: true, message: `User ${code} unbanned.` });
+});
+
+/** POST /api/admin/adjust-tokens */
+router.post("/admin/adjust-tokens", adminAuthMiddleware, async (req, res) => {
+  const code = String(req.body?.referralCode || "").trim().toUpperCase();
+  const amount = Number(req.body?.amount);
+  const reason = String(req.body?.reason || "Admin adjustment").trim();
+  if (!code || isNaN(amount) || amount === 0) {
+    res.status(400).json({ error: "referralCode and non-zero amount required" });
+    return;
+  }
+  const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  const newBalance = Math.max(0, user.creditsEarned + amount);
+  await db.update(crakaUsers).set({ creditsEarned: newBalance }).where(eq(crakaUsers.referralCode, code));
+  if (user.sessionId) {
+    await logTokenTxn({
+      sessionId: user.sessionId,
+      type: amount > 0 ? "grant" : "spend",
+      amount,
+      reason,
+      balanceAfter: newBalance,
+    });
+  }
+  res.json({ success: true, message: `Tokens adjusted by ${amount > 0 ? "+" : ""}${amount} for ${code}. New balance: ${newBalance}` });
+});
+
+/** POST /api/admin/broadcast */
+router.post("/admin/broadcast", adminAuthMiddleware, async (req, res) => {
+  const title = String(req.body?.title || "").trim();
+  const message = String(req.body?.message || "").trim();
+  const type = String(req.body?.type || "info").trim();
+  if (!title || !message) { res.status(400).json({ error: "title and message required" }); return; }
+  const [created] = await db.insert(broadcasts).values({ title, message, type }).returning();
+  res.json({ success: true, id: created.id, message: "Broadcast sent to all users." });
+});
+
+/** GET /api/admin/broadcasts */
+router.get("/admin/broadcasts", adminAuthMiddleware, async (req, res) => {
+  const list = await db.select().from(broadcasts).orderBy(desc(broadcasts.createdAt)).limit(50);
+  res.json(list.map(b => ({ ...b, createdAt: b.createdAt.toISOString() })));
+});
+
+/** DELETE /api/admin/broadcasts/:id */
+router.delete("/admin/broadcasts/:id", adminAuthMiddleware, async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  await db.delete(broadcasts).where(eq(broadcasts.id, id));
+  res.json({ success: true });
 });
 
 /** GET /api/admin/login-logs — last 200 login events */

@@ -73,8 +73,23 @@ export const crakaUsers = pgTable("craka_users", {
   // Admin 2FA
   twoFaSecret: text("two_fa_secret"),
   twoFaEnabled: boolean("two_fa_enabled").notNull().default(false),
+  // Ban
+  isBanned: boolean("is_banned").notNull().default(false),
+  banReason: text("ban_reason"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const broadcasts = pgTable("broadcasts", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: text("type").notNull().default("info"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertBroadcastSchema = createInsertSchema(broadcasts).omit({ id: true, createdAt: true });
+export type InsertBroadcast = z.infer<typeof insertBroadcastSchema>;
+export type Broadcast = typeof broadcasts.$inferSelect;
 
 export const loginLogs = pgTable("login_logs", {
   id: serial("id").primaryKey(),
