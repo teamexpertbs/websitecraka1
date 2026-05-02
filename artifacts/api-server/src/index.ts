@@ -18,6 +18,7 @@ for (const envPath of envCandidates) {
 
 const { default: app } = await import("./app");
 const { logger } = await import("./lib/logger");
+const { verifySMTPOnStartup } = await import("./lib/email");
 
 const rawPort = process.env["PORT"];
 
@@ -40,4 +41,5 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  verifySMTPOnStartup();
 });

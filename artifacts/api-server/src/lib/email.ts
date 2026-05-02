@@ -25,22 +25,39 @@ function getTransporter(): nodemailer.Transporter | null {
       host: SMTP_HOST,
       port: SMTP_PORT,
       secure: SMTP_PORT === 465,
-      pool: true,          // keep connections alive
-      maxConnections: 5,   // up to 5 parallel connections
-      maxMessages: 100,    // reuse connection for 100 messages
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
+      pool: true,
+      maxConnections: 5,
+      maxMessages: 100,
+      auth: { user: SMTP_USER, pass: SMTP_PASS?.trim() }, // trim spaces from App Password
     });
   }
   return _transporter;
+}
+
+// Verify SMTP on startup so errors are visible in logs
+export function verifySMTPOnStartup(): void {
+  if (!isEmailConfigured()) {
+    logger.warn("SMTP not configured — emails disabled");
+    return;
+  }
+  const t = getTransporter();
+  if (!t) return;
+  (t as any).verify((err: Error | null) => {
+    if (err) {
+      logger.error({ err: err.message }, "SMTP connection FAILED — emails will not be delivered");
+    } else {
+      logger.info({ host: SMTP_HOST, port: SMTP_PORT, user: SMTP_USER }, "SMTP connected OK");
+    }
+  });
 }
 
 // Fire-and-forget wrapper — API responds instantly, email sends in background
 function sendAsync(mailOptions: nodemailer.SendMailOptions): void {
   const transporter = getTransporter();
   if (!transporter) return;
-  transporter.sendMail(mailOptions).catch((err) => {
-    logger.error({ err, to: mailOptions.to }, "Email send failed");
-  });
+  transporter.sendMail(mailOptions)
+    .then((info) => logger.info({ messageId: info.messageId, to: mailOptions.to }, "Email delivered"))
+    .catch((err) => logger.error({ err: err.message, to: mailOptions.to, subject: mailOptions.subject }, "Email send FAILED"));
 }
 
 export async function sendMagicLink(email: string, token: string, name?: string): Promise<boolean> {
