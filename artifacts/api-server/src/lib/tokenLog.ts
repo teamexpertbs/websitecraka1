@@ -1,6 +1,6 @@
 import { db, osintTokenTransactions } from "@workspace/db";
 
-export type TxnType = "spend" | "refund" | "earn" | "grant" | "bonus" | "init";
+export type TxnType = "spend" | "refund" | "earn" | "grant" | "bonus" | "init" | "expire";
 
 export async function logTokenTxn(params: {
   sessionId: string;
