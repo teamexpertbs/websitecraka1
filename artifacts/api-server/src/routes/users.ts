@@ -100,18 +100,35 @@ router.get("/user/transactions", async (req, res): Promise<void> => {
   }
 });
 
+const FREE_PLAN_TOKENS = 10;
+
+async function checkPremiumExpiry(sessionId: string): Promise<typeof import("@workspace/db").crakaUsers.$inferSelect | null> {
+  let user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
+  if (!user) return null;
+  if (user.isPremium && user.premiumExpiresAt && new Date() > user.premiumExpiresAt) {
+    const [reset] = await db.update(crakaUsers)
+      .set({ isPremium: false, premiumPlan: null, premiumExpiresAt: null, creditsEarned: FREE_PLAN_TOKENS })
+      .where(eq(crakaUsers.sessionId, sessionId))
+      .returning();
+    await logTokenTxn({ sessionId, type: "expire", amount: 0, reason: "Premium expired — tokens reset to free plan limit", balanceAfter: FREE_PLAN_TOKENS });
+    user = reset;
+  }
+  return user;
+}
+
 router.get("/user/me", async (req, res): Promise<void> => {
   try {
     const validation = UserMeSchema.safeParse({ sessionId: req.query.sessionId });
     if (!validation.success) { res.status(400).json(formatValidationError(validation.error)); return; }
     const { sessionId } = validation.data;
-    const user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
+    const user = await checkPremiumExpiry(sessionId);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
     const referrals = await db.select().from(crakaReferrals).where(eq(crakaReferrals.referrerCode, user.referralCode));
     res.json({
       referralCode: user.referralCode,
       isPremium: user.isPremium,
       premiumPlan: user.premiumPlan,
+      premiumExpiresAt: user.premiumExpiresAt?.toISOString() ?? null,
       creditsEarned: user.creditsEarned,
       totalReferrals: user.totalReferrals,
       referredBy: user.referredBy,
