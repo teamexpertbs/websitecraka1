@@ -21,6 +21,7 @@
     "express-rate-limit": "^7.5.0",
     "google-auth-library": "^10.6.2",
     "jsonwebtoken": "^9.0.2",
+    "libphonenumber-js": "^1.12.42",
     "nanoid": "^5.1.11",
     "nodemailer": "^8.0.7",
     "pino": "^9",

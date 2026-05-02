@@ -5,6 +5,7 @@ import https from "https";
 import http from "http";
 import { logTokenTxn } from "../lib/tokenLog";
 import { createRateLimiter } from "../lib/rateLimit";
+import { lookupIndiaPhone } from "../lib/indiaPhoneLookup";
 
 const router = Router();
 
@@ -230,7 +231,30 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
     const rawText = typeof (rawData as any)?.raw === "string" ? (rawData as any).raw as string : "";
     const isProtected = rawText.includes("PROTECTED") || rawText.includes("⚠️ PROTECTED");
 
-    const isActualFailure = statusCode >= 400 || isEmpty || hasRealError || hasStatusFalse || isProtected;
+    // Detect "Invalid API Response" from broken exploitsindia endpoints
+    const isInvalidApiResponse = rawText.includes("Invalid API Response");
+
+    // For phone slug: use built-in TRAI lookup as fallback when external API is broken
+    if (slug === "phone" && (isInvalidApiResponse || isProtected)) {
+      const info = lookupIndiaPhone(query);
+      const fallbackData = injectDeveloperCredit({
+        "📞 Phone Number": info.formattedNumber,
+        "🌍 Country": `${info.countryName} (${info.countryCode})`,
+        "📡 Operator": info.operator,
+        "📍 Telecom Circle": info.circle,
+        "📱 Number Type": info.numberType,
+        "✅ Valid": info.isValid ? "Yes" : "No",
+        "🔢 Prefix": info.mobilePrefix,
+        "ℹ️ Note": info.note,
+        "Source": "TRAI Numbering Plan (Built-in)",
+      });
+      await db.insert(osintCache).values({ slug, queryVal: query, result: JSON.stringify(fallbackData) }).onConflictDoNothing();
+      await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true });
+      res.json({ data: fallbackData, cached: false, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
+      return;
+    }
+
+    const isActualFailure = statusCode >= 400 || isEmpty || hasRealError || hasStatusFalse || isProtected || isInvalidApiResponse;
 
     if (isActualFailure) {
       await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
