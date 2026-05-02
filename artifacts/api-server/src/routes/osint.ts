@@ -34,8 +34,9 @@ const DEFAULT_APIS = [
   { slug: "pincode",  name: "Pincode",         url: "https://api.postalpincode.in/pincode/{query}",                                   command: "/pincode",  example: "400001",           pattern: "^\\d{6}$",                                                                     category: "Location", credits: 1 },
   { slug: "ip",       name: "IP Lookup",       url: "https://ipapi.co/{query}/json/",                                                 command: "/ip",       example: "8.8.8.8",          pattern: "^(\\d{1,3}\\.){3}\\d{1,3}$",                                                  category: "Network",  credits: 1 },
   { slug: "email",    name: "Email Check",     url: "https://disify.com/api/email/{query}",                                            command: "/email",    example: "test@gmail.com",   pattern: "^[\\w\\.\\-]+@[\\w\\.\\-]+\\.\\w+$",                                           category: "Email",    credits: 1 },
-  { slug: "telegram", name: "Telegram User",   url: "https://exploitsindia.site/api/telegram.php?exploits={query}",                  command: "/telegram", example: "7459756974",       pattern: "^[\\w@]{1,50}$",                                                               category: "Social",   credits: 1 },
-  { slug: "pak",      name: "Pakistan Number", url: "https://abbas-apis.vercel.app/api/pakistan?number={query}",                      command: "/pak",      example: "3001234567",       pattern: "^\\d{10,12}$",                                                                 category: "Phone",    credits: 1 },
+  { slug: "telegram",  name: "Telegram User",    url: "https://exploitsindia.site/api/telegram.php?exploits={query}",                  command: "/telegram",  example: "7459756974",    pattern: "^[\\w@]{1,50}$",                                                               category: "Social",   credits: 1 },
+  { slug: "instagram", name: "Instagram Lookup", url: "https://exploitsindia.site/api/instagram.php?exploits={query}",                command: "/instagram", example: "instagram",      pattern: "^[\\w\\.]+$",                                                                  category: "Social",   credits: 1 },
+  { slug: "pak",      name: "Pakistan Number",  url: "https://abbas-apis.vercel.app/api/pakistan?number={query}",                      command: "/pak",      example: "3001234567",       pattern: "^\\d{10,12}$",                                                                 category: "Phone",    credits: 1 },
   { slug: "global",   name: "Global Number",  url: "https://api.bigdatacloud.net/data/phone-number-details?phoneNumber={query}&key=", command: "/global",   example: "14155552671",      pattern: "^\\d{7,15}$",                                                                  category: "Phone",    credits: 1 },
   { slug: "ff",       name: "Free Fire Info", url: "https://abbas-apis.vercel.app/api/ff-info?uid={query}",                          command: "/ff",       example: "123456789",        pattern: "^\\d{5,15}$",                                                                  category: "Gaming",   credits: 1 },
   { slug: "ffban",    name: "FF Ban Check",   url: "https://abbas-apis.vercel.app/api/ff-ban?uid={query}",                           command: "/ffban",    example: "123456789",        pattern: "^\\d{5,15}$",                                                                  category: "Gaming",   credits: 1 },
@@ -225,7 +226,11 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
     const hasStatusFalse = rawData && typeof rawData === 'object'
       && (rawData as any).status === false;
 
-    const isActualFailure = statusCode >= 400 || isEmpty || hasRealError || hasStatusFalse;
+    // Detect plain-text "PROTECTED" / paid-wall responses (e.g. exploitsindia paid APIs)
+    const rawText = typeof (rawData as any)?.raw === "string" ? (rawData as any).raw as string : "";
+    const isProtected = rawText.includes("PROTECTED") || rawText.includes("⚠️ PROTECTED");
+
+    const isActualFailure = statusCode >= 400 || isEmpty || hasRealError || hasStatusFalse || isProtected;
 
     if (isActualFailure) {
       await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
