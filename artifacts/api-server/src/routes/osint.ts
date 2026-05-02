@@ -214,11 +214,20 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
   try {
     const { data: rawData, statusCode } = await fetchUrl(url);
     
-    // Check if API failed or returned empty JSON object or empty string
+    // Check if API truly failed
     const isEmpty = !rawData || (typeof rawData === 'object' && Object.keys(rawData).length === 0);
-    const hasErrorKey = rawData && typeof rawData === 'object' && ('error' in rawData || 'status' in rawData && (rawData as any).status === false);
 
-    if (statusCode >= 400 || isEmpty || hasErrorKey) {
+    // Only treat as error if 'error' key has a real value (not null/empty/false)
+    const errorVal = rawData && typeof rawData === 'object' ? (rawData as any).error : undefined;
+    const hasRealError = errorVal !== null && errorVal !== undefined && errorVal !== "" && errorVal !== false;
+
+    // Only refund if status is explicitly false (boolean)
+    const hasStatusFalse = rawData && typeof rawData === 'object'
+      && (rawData as any).status === false;
+
+    const isActualFailure = statusCode >= 400 || isEmpty || hasRealError || hasStatusFalse;
+
+    if (isActualFailure) {
       await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
       if (!isUnlimited) {
         // Refund tokens
