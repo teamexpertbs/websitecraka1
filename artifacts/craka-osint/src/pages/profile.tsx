@@ -14,7 +14,6 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { getOrCreateSession } from "@/lib/session";
-import { useCurrentUser, useRefreshCurrentUser } from "@workspace/api-client-react";
 import { Link } from "wouter";
 
 function useBookmarks(sessionId: string | undefined) {
@@ -59,8 +58,7 @@ function useRedeemCoupon() {
 export default function Profile() {
   const { signedInUser } = useUserStore();
   const { token } = useAuthStore();
-  const { data: currentUser } = useCurrentUser();
-  const refreshUser = useRefreshCurrentUser();
+  const qc = useQueryClient();
   const { toast } = useToast();
   const sessionId = signedInUser?.sessionId || getOrCreateSession();
   const [couponCode, setCouponCode] = useState("");
@@ -69,7 +67,7 @@ export default function Profile() {
   const deleteBookmark = useDeleteBookmark();
   const redeemCoupon = useRedeemCoupon();
 
-  const user = signedInUser || currentUser;
+  const user = signedInUser;
   const isLoggedIn = !!(signedInUser || token || sessionId);
 
   const handleRedeemCoupon = () => {
@@ -80,7 +78,7 @@ export default function Profile() {
       onSuccess: (data) => {
         toast({ title: "Coupon Redeemed!", description: data.message || `+${data.credits} credits added!` });
         setCouponCode("");
-        refreshUser();
+        qc.invalidateQueries({ queryKey: ["currentUser"] });
       },
       onError: (err: any) => {
         const msg = err?.data?.error || err?.message || "Failed to redeem coupon";
@@ -132,9 +130,9 @@ export default function Profile() {
                   <Badge variant="outline" className={`text-xs font-semibold ${premiumBadgeColor}`}>
                     {user?.isPremium ? <><Crown className="w-3 h-3 mr-1" />{user.premiumPlan || "Premium"}</> : "Free Plan"}
                   </Badge>
-                  {currentUser?.referralCode && (
+                  {signedInUser?.referralCode && (
                     <Badge variant="outline" className="text-xs font-mono border-border text-muted-foreground">
-                      {currentUser.referralCode}
+                      {signedInUser.referralCode}
                     </Badge>
                   )}
                 </div>
@@ -148,14 +146,14 @@ export default function Profile() {
           <Card className="border-border bg-card/60">
             <CardContent className="p-4 flex flex-col items-center gap-1">
               <Zap className="w-6 h-6 text-yellow-400" />
-              <span className="text-2xl font-bold text-foreground">{currentUser?.creditsEarned ?? 0}</span>
+              <span className="text-2xl font-bold text-foreground">{signedInUser?.creditsEarned ?? 0}</span>
               <span className="text-xs text-muted-foreground">Credits</span>
             </CardContent>
           </Card>
           <Card className="border-border bg-card/60">
             <CardContent className="p-4 flex flex-col items-center gap-1">
               <Gift className="w-6 h-6 text-green-400" />
-              <span className="text-2xl font-bold text-foreground">{currentUser?.totalReferrals ?? 0}</span>
+              <span className="text-2xl font-bold text-foreground">{signedInUser?.totalReferrals ?? 0}</span>
               <span className="text-xs text-muted-foreground">Referrals</span>
             </CardContent>
           </Card>
