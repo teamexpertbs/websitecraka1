@@ -65,6 +65,10 @@ export const crakaUsers = pgTable("craka_users", {
   emailVerified: boolean("email_verified").notNull().default(false),
   magicLinkToken: text("magic_link_token"),
   magicLinkExpiry: timestamp("magic_link_expiry"),
+  // Email/password auth
+  passwordHash: text("password_hash"),
+  passwordResetToken: text("password_reset_token"),
+  passwordResetExpiry: timestamp("password_reset_expiry"),
   // Admin 2FA
   twoFaSecret: text("two_fa_secret"),
   twoFaEnabled: boolean("two_fa_enabled").notNull().default(false),

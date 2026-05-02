@@ -66,32 +66,62 @@ export async function sendMagicLink(email: string, token: string, name?: string)
 
 export async function sendVerificationEmail(email: string, token: string, name?: string): Promise<boolean> {
   const transporter = createTransport();
-  if (!transporter) {
-    logger.warn("Email not configured — skipping verification email send");
-    return false;
-  }
-  const link = `${getAppUrl()}/auth/verify-email?token=${token}`;
+  if (!transporter) return false;
+  const link = `${getAppUrl()}/verify-email?token=${token}`;
   try {
     await transporter.sendMail({
       from: `CraKa OSINT <${FROM_EMAIL}>`,
       to: email,
       subject: "✅ Verify your CraKa OSINT email",
       html: `
-        <div style="font-family: monospace; background:#0a0a0a; color:#00d9ff; padding:32px; border-radius:12px; max-width:480px; margin:0 auto; border:1px solid #1a2a3a;">
-          <h2 style="color:#00d9ff;">CraKa OSINT — Email Verification</h2>
-          <hr style="border-color:#1a2a3a; margin:20px 0;" />
+        <div style="font-family:monospace;background:#0a0a0a;color:#00d9ff;padding:32px;border-radius:12px;max-width:480px;margin:0 auto;border:1px solid #1a2a3a;">
+          <h2 style="color:#00d9ff;margin-bottom:4px;">CraKa OSINT</h2>
+          <p style="color:#aaa;font-size:12px;margin:0 0 20px;">India's #1 Intelligence Portal</p>
+          <hr style="border-color:#1a2a3a;margin:0 0 20px;"/>
           <p style="color:#eee;">Hi ${name || "there"},</p>
-          <p style="color:#aaa;">Please verify your email address by clicking below:</p>
+          <p style="color:#aaa;">Click below to verify your email and activate your account:</p>
           <a href="${link}" style="display:inline-block;margin:20px 0;padding:14px 28px;background:#22c55e;color:#000;font-weight:bold;text-decoration:none;border-radius:8px;font-size:14px;letter-spacing:1px;">
-            VERIFY EMAIL
+            ✅ VERIFY EMAIL
           </a>
-          <p style="color:#666; font-size:11px;">This link expires in 24 hours.</p>
+          <p style="color:#666;font-size:11px;">This link expires in 24 hours. If you didn't register, ignore this email.</p>
         </div>
       `,
     });
+    logger.info({ email }, "Verification email sent");
     return true;
   } catch (err) {
     logger.error({ err, email }, "Failed to send verification email");
+    return false;
+  }
+}
+
+export async function sendPasswordResetEmail(email: string, token: string, name?: string): Promise<boolean> {
+  const transporter = createTransport();
+  if (!transporter) return false;
+  const link = `${getAppUrl()}/reset-password?token=${token}`;
+  try {
+    await transporter.sendMail({
+      from: `CraKa OSINT <${FROM_EMAIL}>`,
+      to: email,
+      subject: "🔐 Reset your CraKa OSINT password",
+      html: `
+        <div style="font-family:monospace;background:#0a0a0a;color:#00d9ff;padding:32px;border-radius:12px;max-width:480px;margin:0 auto;border:1px solid #1a2a3a;">
+          <h2 style="color:#00d9ff;margin-bottom:4px;">CraKa OSINT</h2>
+          <p style="color:#aaa;font-size:12px;margin:0 0 20px;">Password Reset Request</p>
+          <hr style="border-color:#1a2a3a;margin:0 0 20px;"/>
+          <p style="color:#eee;">Hi ${name || "there"},</p>
+          <p style="color:#aaa;">Click below to set a new password. This link expires in <strong style="color:#00d9ff;">15 minutes</strong>.</p>
+          <a href="${link}" style="display:inline-block;margin:20px 0;padding:14px 28px;background:#f59e0b;color:#000;font-weight:bold;text-decoration:none;border-radius:8px;font-size:14px;letter-spacing:1px;">
+            🔐 RESET PASSWORD
+          </a>
+          <p style="color:#666;font-size:11px;">If you didn't request this, ignore this email. Your password won't change.</p>
+        </div>
+      `,
+    });
+    logger.info({ email }, "Password reset email sent");
+    return true;
+  } catch (err) {
+    logger.error({ err, email }, "Failed to send password reset email");
     return false;
   }
 }

@@ -18,10 +18,12 @@ import Transactions from "@/pages/transactions";
 import Login from "@/pages/login";
 import ForgotPassword from "@/pages/forgot-password";
 import MagicLogin from "@/pages/magic-login";
+import VerifyEmail from "@/pages/verify-email";
+import ResetPassword from "@/pages/reset-password";
 
 const queryClient = new QueryClient();
 
-const PUBLIC_ROUTES = ["/login", "/forgot-password", "/auth/magic"];
+const PUBLIC_ROUTES = ["/login", "/forgot-password", "/auth/magic", "/verify-email", "/reset-password"];
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { signedInUser } = useUserStore();
@@ -39,6 +41,8 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/auth/magic" component={MagicLogin} />
+      <Route path="/verify-email" component={VerifyEmail} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route>
         <AuthGuard>
           <Switch>
