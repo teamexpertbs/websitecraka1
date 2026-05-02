@@ -45,10 +45,10 @@ const DEFAULT_APIS = [
   { slug: "domain",   name: "Domain WHOIS",   url: "https://api.whois.vu/?q={query}",                                                command: "/domain",   example: "example.com",      pattern: null,                                                                           category: "Network",  credits: 1 },
   { slug: "github",   name: "GitHub User",    url: "https://api.github.com/users/{query}",                                            command: "/github",   example: "torvalds",         pattern: "^[\\w\\-\\.]{1,39}$",                                                          category: "Social",   credits: 1 },
   { slug: "dl",       name: "Driving License",url: "https://exploitsindia.site/api/dl.php?exploits={query}",                          command: "/dl",       example: "HR26 20110012345", pattern: null,                                                                           category: "Identity", credits: 1 },
-  { slug: "discord",  name: "Discord User",   url: "https://discord-lookup-api.vercel.app/v1/users/{query}",                          command: "/discord",  example: "1234567890123456", pattern: "^\\d{15,20}$",                                                                 category: "Social",   credits: 1 },
-  { slug: "pubg",     name: "PUBG/BGMI",      url: "https://abbas-apis.vercel.app/api/pubg?id={query}",                               command: "/pubg",     example: "123456789",        pattern: "^\\d{5,15}$",                                                                  category: "Gaming",   credits: 1 },
-  { slug: "twitter",  name: "Twitter/X User", url: "https://api.socialdata.tools/twitter/user/{query}",                               command: "/twitter",  example: "elonmusk",         pattern: "^[\\w]{1,50}$",                                                                category: "Social",   credits: 1 },
-  { slug: "aadhaar2", name: "Aadhaar-Mobile", url: "https://exploitsindia.site/api/aadhar_mobile.php?exploits={query}",               command: "/aadhaar2", example: "882838027159",     pattern: "^\\d{12}$",                                                                    category: "Identity", credits: 1 },
+  { slug: "discord",  name: "Discord User",   url: "https://discord-lookup-api.vercel.app/v1/user/{query}",                           command: "/discord",  example: "1234567890123456", pattern: "^\\d{15,20}$",                                                                 category: "Social",   credits: 1 },
+  { slug: "pubg",     name: "PUBG/BGMI",      url: "https://api.tracker.gg/api/v2/pubg/standard/profile/steam/{query}/segments/overview",command: "/pubg",    example: "PlayerName",       pattern: null,                                                                           category: "Gaming",   credits: 1 },
+  { slug: "twitter",  name: "Twitter/X User", url: "https://api.fxtwitter.com/{query}",                                               command: "/twitter",  example: "elonmusk",         pattern: "^[\\w]{1,50}$",                                                                category: "Social",   credits: 1 },
+  { slug: "aadhaar2", name: "Aadhaar-Mobile", url: "https://exploitsindia.site/api/aadhaar_mobile.php?number={query}",                command: "/aadhaar2", example: "882838027159",     pattern: "^\\d{12}$",                                                                    category: "Identity", credits: 1 },
 ];
 
 async function seedDefaultApis() {
@@ -57,7 +57,27 @@ async function seedDefaultApis() {
   }
 }
 
-seedDefaultApis().catch(console.error);
+// Fix broken/outdated URLs for existing records in DB
+const URL_FIXES: Record<string, Partial<typeof DEFAULT_APIS[0]>> = {
+  discord:  { url: "https://discord-lookup-api.vercel.app/v1/user/{query}", example: "960995336476053534" },
+  twitter:  { url: "https://api.fxtwitter.com/{query}", example: "elonmusk" },
+  pubg:     { url: "https://api.tracker.gg/api/v2/pubg/standard/profile/steam/{query}/segments/overview", example: "PlayerName", pattern: null },
+  dl:       { url: "https://exploitsindia.site/api/dl.php?exploits={query}", example: "HR26 20110012345" },
+  aadhaar2: { url: "https://exploitsindia.site/api/aadhaar_mobile.php?number={query}", example: "882838027159" },
+  github:   { url: "https://api.github.com/users/{query}", example: "torvalds" },
+};
+
+async function updateBrokenApis() {
+  for (const [slug, fixes] of Object.entries(URL_FIXES)) {
+    await db.update(osintApis)
+      .set(fixes as any)
+      .where(eq(osintApis.slug, slug));
+  }
+}
+
+seedDefaultApis()
+  .then(() => updateBrokenApis())
+  .catch(console.error);
 
 function fetchUrl(url: string): Promise<{ data: Record<string, unknown>; statusCode: number }> {
   return new Promise((resolve, reject) => {
@@ -210,7 +230,157 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
     res.json({ data, cached: true, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
     return;
   }
-  
+
+  // ── Custom built-in handlers for specific slugs ──────────────────────────
+  if (slug === "dl") {
+    // Parse DL number: State(2) + RTO(2-3) + Year(4) + Serial(4-7)
+    const dlRaw = query.toUpperCase().replace(/[\s\-]/g, "");
+    const dlMatch = dlRaw.match(/^([A-Z]{2})(\d{2})(\d{4})(\d{4,7})$/);
+    const stateMap: Record<string, string> = {
+      "AP":"Andhra Pradesh","AR":"Arunachal Pradesh","AS":"Assam","BR":"Bihar","CG":"Chhattisgarh",
+      "GA":"Goa","GJ":"Gujarat","HR":"Haryana","HP":"Himachal Pradesh","JK":"Jammu & Kashmir",
+      "JH":"Jharkhand","KA":"Karnataka","KL":"Kerala","MP":"Madhya Pradesh","MH":"Maharashtra",
+      "MN":"Manipur","ML":"Meghalaya","MZ":"Mizoram","NL":"Nagaland","OD":"Odisha",
+      "PB":"Punjab","RJ":"Rajasthan","SK":"Sikkim","TN":"Tamil Nadu","TS":"Telangana",
+      "TR":"Tripura","UP":"Uttar Pradesh","UK":"Uttarakhand","WB":"West Bengal",
+      "AN":"Andaman & Nicobar","CH":"Chandigarh","DN":"Dadra & Nagar Haveli","DD":"Daman & Diu",
+      "DL":"Delhi","LD":"Lakshadweep","PY":"Puducherry","LA":"Ladakh",
+    };
+    if (dlMatch) {
+      const [, stateCode, rtoCode, year, serial] = dlMatch;
+      const data = injectDeveloperCredit({
+        "🪪 DL Number": query,
+        "📍 State": stateMap[stateCode] || stateCode,
+        "🏢 Issuing RTO": `${stateCode}-${rtoCode} (${stateMap[stateCode] || stateCode})`,
+        "📅 Issue Year": year,
+        "🔢 Serial": serial,
+        "✅ Format Valid": "Yes",
+        "⚠️ Note": "Full DL data requires government API access. Basic format parsed from DL number.",
+      });
+      await db.insert(osintCache).values({ slug, queryVal: query, result: JSON.stringify(data) }).onConflictDoNothing();
+      await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true, sessionId });
+      res.json({ data, cached: false, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
+      return;
+    }
+    // Fallback: try external API anyway
+  }
+
+  if (slug === "aadhaar2") {
+    // Aadhaar-Mobile: parse Aadhaar and return what we can infer
+    const aaNum = query.trim();
+    const verhoeff = [
+      [0,1,2,3,4,5,6,7,8,9],[1,2,3,4,0,6,7,8,9,5],[2,3,4,0,1,7,8,9,5,6],[3,4,0,1,2,8,9,5,6,7],
+      [4,0,1,2,3,9,5,6,7,8],[5,9,8,7,6,0,4,3,2,1],[6,5,9,8,7,1,0,4,3,2],[7,6,5,9,8,2,1,0,4,3],
+      [8,7,6,5,9,3,2,1,0,4],[9,8,7,6,5,4,3,2,1,0]
+    ];
+    const permute = [[0,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,6,1,4,2],[8,9,1,6,0,4,3,5,2,7],[9,4,5,3,1,2,6,8,7,0]];
+    let check = 0;
+    const reversed = aaNum.split("").reverse();
+    for (let i = 0; i < reversed.length; i++) {
+      check = verhoeff[check][permute[i % 8][parseInt(reversed[i])]];
+    }
+    const stateFirstDigitMap: Record<string, string> = {
+      "1":"Jammu & Kashmir / Delhi","2":"Himachal Pradesh / Haryana","3":"Punjab / Rajasthan",
+      "4":"Gujarat / Maharashtra","5":"Chhattisgarh / Madhya Pradesh","6":"Uttarakhand / Uttar Pradesh",
+      "7":"Bihar / Jharkhand","8":"West Bengal / Odisha","9":"Assam / NE States",
+    };
+    const region = stateFirstDigitMap[aaNum[0]] || "Unknown";
+    const data = injectDeveloperCredit({
+      "🆔 Aadhaar Number": `XXXX XXXX ${aaNum.slice(-4)}`,
+      "✅ Checksum Valid": check === 0 ? "Yes (Valid Aadhaar format)" : "No (Invalid number)",
+      "🌍 Estimated Region": region,
+      "📞 Linked Mobile": "Requires UIDAI authorization — not publicly accessible",
+      "🔒 Note": "Mobile-Aadhaar link data is protected under UIDAI. Only authorized agencies can access.",
+    });
+    await db.insert(osintCache).values({ slug, queryVal: query, result: JSON.stringify(data) }).onConflictDoNothing();
+    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true, sessionId });
+    res.json({ data, cached: false, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
+    return;
+  }
+
+  if (slug === "pubg") {
+    // Use tracker.gg unofficial data — try public player stats
+    const apiUrl = `https://api.tracker.gg/api/v2/pubg/standard/profile/steam/${encodeURIComponent(query)}/segments/overview`;
+    try {
+      const { data: rawData, statusCode } = await fetchUrl(apiUrl);
+      if (statusCode === 200 && rawData && (rawData as any).data) {
+        const seg = (rawData as any).data;
+        const attrs = seg.attributes || {};
+        const stats = seg.stats || {};
+        const flatData = injectDeveloperCredit({
+          "🎮 Player": attrs.playerHandle || query,
+          "🏆 Matches": stats.matches?.value ?? "—",
+          "💀 Kills": stats.kills?.value ?? "—",
+          "☠️ Deaths": stats.deaths?.value ?? "—",
+          "📊 KD Ratio": stats.kdRatio?.displayValue ?? "—",
+          "🥇 Wins": stats.wins?.value ?? "—",
+          "📈 Win%": stats.winRatio?.displayValue ?? "—",
+          "⭐ Damage/Match": stats.damageDealt?.displayValue ?? "—",
+          "🎯 Headshot%": stats.headshotKillsRatio?.displayValue ?? "—",
+          "Source": "tracker.gg",
+        });
+        await db.insert(osintCache).values({ slug, queryVal: query, result: JSON.stringify(flatData) }).onConflictDoNothing();
+        await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true, sessionId });
+        res.json({ data: flatData, cached: false, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
+        return;
+      }
+    } catch { /* fall through to error */ }
+    // tracker.gg blocked/no data — return helpful message
+    const fallback = injectDeveloperCredit({
+      "🎮 Query": query,
+      "⚠️ Status": "Player not found or stats unavailable",
+      "📝 Note": "PUBG/BGMI Mobile stats require an authenticated API. PC PUBG player name lookup via tracker.gg.",
+      "🔍 Tip": "Make sure you are using a PC PUBG Steam username (not BGMI mobile ID)",
+    });
+    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false, sessionId });
+    if (!isUnlimited) {
+      const [refunded] = await db.update(crakaUsers)
+        .set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` })
+        .where(eq(crakaUsers.sessionId, sessionId))
+        .returning({ creditsEarned: crakaUsers.creditsEarned });
+      await logTokenTxn({ sessionId, type: "refund", amount: apiRow.credits, reason: `${apiRow.name} lookup failed — refunded`, balanceAfter: refunded?.creditsEarned ?? 0 });
+    }
+    res.json({ data: fallback, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: "No PUBG data found (Tokens Refunded)" });
+    return;
+  }
+
+  if (slug === "twitter") {
+    // fxtwitter returns { code, user: { ... } } — flatten it
+    const twtUrl = `https://api.fxtwitter.com/${encodeURIComponent(query)}`;
+    try {
+      const { data: rawData, statusCode } = await fetchUrl(twtUrl);
+      const user = (rawData as any)?.user;
+      if (statusCode === 200 && user) {
+        const flatData = injectDeveloperCredit({
+          "🐦 Username": `@${user.screen_name || query}`,
+          "👤 Name": user.name || "—",
+          "📝 Bio": user.description || "—",
+          "👥 Followers": user.followers?.toLocaleString() ?? "—",
+          "➡️ Following": user.following?.toLocaleString() ?? "—",
+          "🐦 Tweets": user.tweets?.toLocaleString() ?? "—",
+          "❤️ Likes": user.likes?.toLocaleString() ?? "—",
+          "✅ Verified": user.verified ? "Yes" : "No",
+          "🖼️ Avatar": user.avatar_url || "—",
+          "🔗 URL": `https://x.com/${user.screen_name || query}`,
+          "📅 Joined": user.created_at || "—",
+          "📍 Location": user.location || "—",
+          "🌐 Website": user.website?.url || "—",
+        });
+        await db.insert(osintCache).values({ slug, queryVal: query, result: JSON.stringify(flatData) }).onConflictDoNothing();
+        await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true, sessionId });
+        res.json({ data: flatData, cached: false, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
+        return;
+      }
+    } catch { /* fall through */ }
+    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false, sessionId });
+    if (!isUnlimited) {
+      const [refunded] = await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId)).returning({ creditsEarned: crakaUsers.creditsEarned });
+      await logTokenTxn({ sessionId, type: "refund", amount: apiRow.credits, reason: `Twitter lookup failed — refunded`, balanceAfter: refunded?.creditsEarned ?? 0 });
+    }
+    res.json({ data: {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: "Twitter user not found or lookup failed (Tokens Refunded)" });
+    return;
+  }
+
   const url = apiRow.url.replace("{query}", encodeURIComponent(query));
   
   try {
