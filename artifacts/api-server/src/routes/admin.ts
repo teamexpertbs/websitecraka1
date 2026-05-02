@@ -11,12 +11,53 @@ const router = Router();
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
 const ADMIN_PASS = process.env.ADMIN_PASS || "craka@admin123";
 
+// Brute force protection — in-memory per-IP tracker
+interface FailRecord { count: number; lockedUntil: number | null }
+const failedAttempts = new Map<string, FailRecord>();
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+function getClientIp(req: any): string {
+  return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+}
+function checkBruteForce(ip: string): { blocked: boolean; retryAfter?: number } {
+  const rec = failedAttempts.get(ip);
+  if (!rec) return { blocked: false };
+  if (rec.lockedUntil && Date.now() < rec.lockedUntil) {
+    return { blocked: true, retryAfter: Math.ceil((rec.lockedUntil - Date.now()) / 1000) };
+  }
+  if (rec.lockedUntil && Date.now() >= rec.lockedUntil) {
+    failedAttempts.delete(ip);
+  }
+  return { blocked: false };
+}
+function recordFailure(ip: string): void {
+  const rec = failedAttempts.get(ip) || { count: 0, lockedUntil: null };
+  rec.count += 1;
+  if (rec.count >= MAX_ATTEMPTS) rec.lockedUntil = Date.now() + LOCKOUT_MS;
+  failedAttempts.set(ip, rec);
+}
+function clearFailures(ip: string): void {
+  failedAttempts.delete(ip);
+}
+
 // In-memory TOTP secret store (persisted via env ADMIN_2FA_SECRET)
 function getAdmin2FaSecret(): string | null {
   return process.env.ADMIN_2FA_SECRET || null;
 }
 
 router.post("/admin/login", async (req, res) => {
+  const ip = getClientIp(req);
+  const bruteCheck = checkBruteForce(ip);
+  if (bruteCheck.blocked) {
+    res.status(429).json({
+      success: false,
+      message: `Too many failed attempts. Try again in ${Math.ceil((bruteCheck.retryAfter ?? 0) / 60)} minutes.`,
+      retryAfter: bruteCheck.retryAfter,
+    });
+    return;
+  }
+
   const validation = AdminLoginSchema.safeParse(req.body);
   if (!validation.success) {
     res.status(400).json(formatValidationError(validation.error));
@@ -27,24 +68,33 @@ router.post("/admin/login", async (req, res) => {
   const totpToken: string | undefined = (req.body as any).totpToken;
 
   if (username !== ADMIN_USER || password !== ADMIN_PASS) {
-    res.status(401).json({ success: false, message: "Invalid credentials" });
+    recordFailure(ip);
+    const rec = failedAttempts.get(ip);
+    const remaining = MAX_ATTEMPTS - (rec?.count ?? 0);
+    res.status(401).json({
+      success: false,
+      message: remaining > 0
+        ? `Invalid credentials. ${remaining} attempt${remaining !== 1 ? "s" : ""} remaining before lockout.`
+        : "Account locked for 15 minutes due to too many failed attempts.",
+    });
     return;
   }
 
   const secret = getAdmin2FaSecret();
   if (secret) {
-    // 2FA is enabled — require TOTP
     if (!totpToken) {
       res.status(200).json({ success: false, requires2FA: true, message: "2FA code required" });
       return;
     }
     const valid = verifyTotp(secret, totpToken);
     if (!valid) {
+      recordFailure(ip);
       res.status(401).json({ success: false, message: "Invalid 2FA code" });
       return;
     }
   }
 
+  clearFailures(ip);
   const token = generateToken(username);
   res.json({ success: true, token, expiresIn: "8h", message: "Login successful" });
 });

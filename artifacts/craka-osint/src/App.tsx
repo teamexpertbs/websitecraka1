@@ -43,6 +43,7 @@ function Router() {
       <Route path="/auth/magic" component={MagicLogin} />
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/admin" component={Admin} />
       <Route>
         <AuthGuard>
           <Switch>
@@ -51,7 +52,6 @@ function Router() {
             <Route path="/stats" component={Stats} />
             <Route path="/tools" component={Tools} />
             <Route path="/transactions" component={Transactions} />
-            <Route path="/admin" component={Admin} />
             <Route path="/premium" component={Premium} />
             <Route path="/refer" component={Refer} />
             <Route component={NotFound} />

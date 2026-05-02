@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Layout } from "@/components/layout";
 import { useAuthStore } from "@/lib/auth";
 import { 
   useAdminLogin, 
@@ -21,6 +20,40 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Label } from "@/components/ui/label";
 import { Shield, Lock, Activity, Database, Trash2, Plus, Edit2, KeyRound, Crown, Check, Users, HeartPulse, RefreshCw, Smartphone, FileText, CheckCircle, XCircle, Globe, Clock } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+
+function AdminLayout({ children, minimal }: { children: React.ReactNode; minimal?: boolean }) {
+  const { token, setToken } = useAuthStore();
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <header className="border-b border-border/60 bg-black/60 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-md bg-destructive/20 border border-destructive/40 flex items-center justify-center">
+              <Shield className="w-4 h-4 text-destructive" />
+            </div>
+            <span className="font-mono font-bold text-sm tracking-widest text-destructive">CRAKA</span>
+            <span className="font-mono text-xs text-muted-foreground tracking-widest">/ ADMIN</span>
+          </div>
+          {!minimal && token && (
+            <button
+              onClick={() => setToken(null)}
+              className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-destructive transition-colors border border-border/50 hover:border-destructive/50 px-3 py-1.5 rounded-md"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              LOGOUT
+            </button>
+          )}
+        </div>
+      </header>
+      <main className="flex-1 px-4 py-6 max-w-7xl mx-auto w-full">
+        {children}
+      </main>
+      <footer className="border-t border-border/40 py-3 text-center text-[10px] font-mono text-muted-foreground/50 tracking-widest">
+        CRAKA ADMIN PANEL — RESTRICTED ACCESS — UNAUTHORISED USE PROHIBITED
+      </footer>
+    </div>
+  );
+}
 
 export default function Admin() {
   const { token, setToken } = useAuthStore();
@@ -74,8 +107,8 @@ export default function Admin() {
 
   if (!token) {
     return (
-      <Layout>
-        <div className="flex items-center justify-center h-[calc(100vh-100px)]">
+      <AdminLayout minimal>
+        <div className="flex items-center justify-center min-h-screen -mt-16">
           <Card className="w-full max-w-md bg-card/80 border-border backdrop-blur shadow-2xl">
             <CardHeader className="text-center pb-8 border-b border-border/50">
               <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4 border border-primary/30 shadow-[0_0_15px_rgba(0,217,255,0.2)]">
@@ -137,7 +170,7 @@ export default function Admin() {
             </form>
           </Card>
         </div>
-      </Layout>
+      </AdminLayout>
     );
   }
 
@@ -305,7 +338,7 @@ function AdminDashboard() {
   };
 
   return (
-    <Layout>
+    <AdminLayout>
       <div className="max-w-6xl mx-auto space-y-6">
         <header className="mb-8 flex justify-between items-end">
           <div>
@@ -719,7 +752,7 @@ function AdminDashboard() {
         <LoginLogsSection />
         <TwoFASection />
       </div>
-    </Layout>
+    </AdminLayout>
   );
 }
 
