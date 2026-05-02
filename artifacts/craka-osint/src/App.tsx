@@ -20,11 +20,13 @@ import ForgotPassword from "@/pages/forgot-password";
 
 const queryClient = new QueryClient();
 
+const PUBLIC_ROUTES = ["/login", "/forgot-password", "/auth/magic"];
+
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { signedInUser } = useUserStore();
   const [location] = useLocation();
 
-  if (!signedInUser && location !== "/login") {
+  if (!signedInUser && !PUBLIC_ROUTES.includes(location)) {
     return <Redirect to="/login" />;
   }
   return <>{children}</>;
