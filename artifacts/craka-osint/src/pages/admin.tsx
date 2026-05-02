@@ -409,7 +409,7 @@ function AdminDashboard() {
           </div>
         )}
 
-        <Card className="bg-card border-border overflow-hidden overflow-x-auto">
+        <Card className="bg-card border-border overflow-hidden">
           <CardHeader className="bg-muted/40 border-b border-border">
             <CardTitle className="text-lg flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" />
@@ -420,6 +420,7 @@ function AdminDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
@@ -471,10 +472,11 @@ function AdminDashboard() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-r from-yellow-400/5 to-yellow-400/10 border-yellow-400/30 overflow-hidden overflow-x-auto">
+        <Card className="bg-gradient-to-r from-yellow-400/5 to-yellow-400/10 border-yellow-400/30 overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-yellow-400/20 pb-4">
             <CardTitle className="text-lg flex items-center gap-2 text-yellow-400">
               <Crown className="w-5 h-5" />
@@ -551,10 +553,11 @@ function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border overflow-hidden overflow-x-auto">
+        <Card className="bg-card border-border overflow-hidden">
           <CardHeader className="bg-muted/40 border-b border-border">
             <CardTitle className="text-lg">Registered Vectors</CardTitle>
           </CardHeader>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
@@ -623,9 +626,10 @@ function AdminDashboard() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </Card>
         
-        <Card className="bg-card border-border overflow-hidden overflow-x-auto">
+        <Card className="bg-card border-border overflow-hidden">
           <CardHeader className="bg-muted/40 border-b border-border flex items-center justify-between gap-4">
             <CardTitle className="text-lg flex items-center gap-2">
               <HeartPulse className="w-5 h-5 text-emerald-400" />
@@ -640,6 +644,7 @@ function AdminDashboard() {
             {healthError ? (
               <div className="p-4 text-destructive text-sm">{healthError}</div>
             ) : (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
@@ -706,11 +711,12 @@ function AdminDashboard() {
                   )}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border overflow-hidden overflow-x-auto">
+        <Card className="bg-card border-border overflow-hidden">
           <CardHeader className="bg-muted/40 border-b border-border flex items-center justify-between gap-4">
             <CardTitle className="text-lg">Recent Executions</CardTitle>
             <Button variant="outline" size="sm" onClick={() => setShowRecentExecutions(prev => !prev)} className="h-9">
@@ -718,6 +724,7 @@ function AdminDashboard() {
             </Button>
           </CardHeader>
           {showRecentExecutions && (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
@@ -746,6 +753,7 @@ function AdminDashboard() {
               ))}
             </TableBody>
           </Table>
+          </div>
           )}
         </Card>
 
@@ -788,7 +796,7 @@ function LoginLogsSection() {
   };
 
   return (
-    <Card className="bg-card border-border overflow-hidden overflow-x-auto">
+    <Card className="bg-card border-border overflow-hidden">
       <CardHeader className="bg-muted/40 border-b border-border flex items-center justify-between gap-4">
         <CardTitle className="text-lg flex items-center gap-2">
           <FileText className="w-5 h-5 text-primary" />
@@ -813,6 +821,7 @@ function LoginLogsSection() {
           ) : logs.length === 0 && !loading ? (
             <div className="p-6 text-center text-muted-foreground text-sm">No login events recorded yet.</div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
@@ -859,6 +868,7 @@ function LoginLogsSection() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       )}
@@ -919,7 +929,7 @@ function TwoFASection() {
   };
 
   return (
-    <Card className="bg-card border-border overflow-hidden overflow-x-auto">
+    <Card className="bg-card border-border overflow-hidden">
       <CardHeader className="bg-muted/40 border-b border-border flex items-center justify-between gap-4">
         <CardTitle className="text-lg flex items-center gap-2">
           <Smartphone className="w-5 h-5 text-primary" />
