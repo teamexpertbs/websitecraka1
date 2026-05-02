@@ -6,7 +6,16 @@ const SMTP_PORT = Number(process.env.SMTP_PORT || "587");
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
 const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@crakadevelopers.online";
-const APP_URL = process.env.APP_URL || "https://crakadevelopers.online";
+
+// In Replit dev, frontend (craka-osint) runs on port 24042
+// In production, use APP_URL
+function getAppUrl(): string {
+  const replitDomain = process.env.REPLIT_DEV_DOMAIN;
+  if (replitDomain) {
+    return `https://24042-${replitDomain}`;
+  }
+  return process.env.APP_URL || "https://crakadevelopers.online";
+}
 
 export const isEmailConfigured = () => !!(SMTP_HOST && SMTP_USER && SMTP_PASS);
 
@@ -26,7 +35,7 @@ export async function sendMagicLink(email: string, token: string, name?: string)
     logger.warn("Email not configured — skipping magic link send");
     return false;
   }
-  const link = `${APP_URL}/auth/magic?token=${token}`;
+  const link = `${getAppUrl()}/auth/magic?token=${token}`;
   try {
     await transporter.sendMail({
       from: `CraKa OSINT <${FROM_EMAIL}>`,
@@ -61,7 +70,7 @@ export async function sendVerificationEmail(email: string, token: string, name?:
     logger.warn("Email not configured — skipping verification email send");
     return false;
   }
-  const link = `${APP_URL}/auth/verify-email?token=${token}`;
+  const link = `${getAppUrl()}/auth/verify-email?token=${token}`;
   try {
     await transporter.sendMail({
       from: `CraKa OSINT <${FROM_EMAIL}>`,
