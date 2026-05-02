@@ -16,7 +16,9 @@ pnpm workspace monorepo using TypeScript. CraKa OSINT Portal — a dark-themed i
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 - **Frontend**: React + Vite + Tailwind + wouter + TanStack Query
-- **Auth**: Admin auth via Bearer token (base64 username:password), stored in localStorage
+- **Auth**: Google OAuth (GSI popup → idToken → JWT 30d), Admin JWT (8h), magic link login
+- **Security**: Admin 2FA (TOTP via speakeasy), login logs table, email verification mark
+- **Email**: nodemailer (optional SMTP — magic link falls back to dev_token if unconfigured)
 
 ## Key Commands
 
