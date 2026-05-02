@@ -512,7 +512,7 @@ router.post("/admin/coupons", adminAuthMiddleware, async (req, res) => {
 
 /** PATCH /api/admin/coupons/:code/toggle */
 router.patch("/admin/coupons/:code/toggle", adminAuthMiddleware, async (req, res) => {
-  const code = req.params.code.toUpperCase();
+  const code = (req.params.code as string).toUpperCase();
   const coupon = await db.select().from(coupons).where(eq(coupons.code, code)).then(r => r[0]);
   if (!coupon) { res.status(404).json({ error: "Coupon not found" }); return; }
   await db.update(coupons).set({ isActive: !coupon.isActive }).where(eq(coupons.code, code));
@@ -521,7 +521,7 @@ router.patch("/admin/coupons/:code/toggle", adminAuthMiddleware, async (req, res
 
 /** DELETE /api/admin/coupons/:code */
 router.delete("/admin/coupons/:code", adminAuthMiddleware, async (req, res) => {
-  const code = req.params.code.toUpperCase();
+  const code = (req.params.code as string).toUpperCase();
   await db.delete(coupons).where(eq(coupons.code, code));
   res.json({ success: true });
 });
