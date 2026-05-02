@@ -185,12 +185,26 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
   }
 
   // Token Validation
-  const user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).limit(1);
-  if (!user[0]) {
+  const userRaw = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).limit(1);
+  if (!userRaw[0]) {
     res.status(401).json({ error: "User session not found. Please reload." });
     return;
   }
-  
+
+  // ── Premium Expiry Check ──────────────────────────────────────────────────
+  // If premium has expired, immediately reset to free plan and cap tokens
+  const FREE_PLAN_TOKENS = 10;
+  let userData = userRaw[0];
+  if (userData.isPremium && userData.premiumExpiresAt && new Date() > userData.premiumExpiresAt) {
+    const [resetUser] = await db.update(crakaUsers)
+      .set({ isPremium: false, premiumPlan: null, premiumExpiresAt: null, creditsEarned: FREE_PLAN_TOKENS })
+      .where(eq(crakaUsers.sessionId, sessionId))
+      .returning();
+    await logTokenTxn({ sessionId, type: "expire", amount: 0, reason: "Premium expired — tokens reset to free plan limit", balanceAfter: FREE_PLAN_TOKENS });
+    userData = resetUser;
+  }
+
+  const user = [userData];
   const isUnlimited = user[0].isPremium && user[0].premiumPlan && user[0].premiumPlan.toLowerCase() === "elite";
   
   if (!isUnlimited && user[0].creditsEarned < apiRow.credits) {
