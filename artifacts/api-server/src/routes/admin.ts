@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db, osintApis, osintHistory, osintCache, crakaUsers, loginLogs, broadcasts } from "@workspace/db";
-import { eq, sql, desc, gt } from "drizzle-orm";
+import { db, osintApis, osintHistory, osintCache, crakaUsers, loginLogs, broadcasts, coupons, couponUses, scheduledBroadcasts } from "@workspace/db";
+import { eq, sql, desc, gt, and, lte } from "drizzle-orm";
 import { generateToken, adminAuthMiddleware, refreshTokenHandler } from "../lib/jwt";
 import { AdminLoginSchema, AdminCreateApiSchema, AdminGrantPremiumSchema, formatValidationError } from "../lib/validation";
 import { logTokenTxn } from "../lib/tokenLog";
@@ -480,6 +480,106 @@ router.post("/admin/2fa/setup", adminAuthMiddleware, async (req, res) => {
     instructions: `Scan this QR code with Google Authenticator, then set ADMIN_2FA_SECRET=${secret.base32} as a Replit Secret.`,
   });
 });
+
+/** GET /api/broadcasts — public endpoint for users */
+router.get("/broadcasts", async (req, res) => {
+  const list = await db.select().from(broadcasts).orderBy(desc(broadcasts.createdAt)).limit(30);
+  res.json(list.map(b => ({ ...b, createdAt: b.createdAt.toISOString() })));
+});
+
+/** GET /api/admin/coupons */
+router.get("/admin/coupons", adminAuthMiddleware, async (req, res) => {
+  const list = await db.select().from(coupons).orderBy(desc(coupons.createdAt));
+  res.json(list.map(c => ({ ...c, expiresAt: c.expiresAt?.toISOString() || null, createdAt: c.createdAt.toISOString() })));
+});
+
+/** POST /api/admin/coupons */
+router.post("/admin/coupons", adminAuthMiddleware, async (req, res) => {
+  const code = String(req.body?.code || "").trim().toUpperCase().replace(/\s+/g, "");
+  const credits = Number(req.body?.credits || 10);
+  const maxUses = Number(req.body?.maxUses || 1);
+  const description = String(req.body?.description || "").trim();
+  const expiresAt = req.body?.expiresAt ? new Date(req.body.expiresAt) : null;
+  if (!code || isNaN(credits) || credits <= 0) { res.status(400).json({ error: "code and credits required" }); return; }
+  try {
+    const [created] = await db.insert(coupons).values({ code, credits, maxUses, description, expiresAt, isActive: true }).returning();
+    res.json({ success: true, coupon: { ...created, expiresAt: created.expiresAt?.toISOString() || null, createdAt: created.createdAt.toISOString() } });
+  } catch (e: any) {
+    if (e?.code === "23505") { res.status(409).json({ error: "Coupon code already exists" }); return; }
+    throw e;
+  }
+});
+
+/** PATCH /api/admin/coupons/:code/toggle */
+router.patch("/admin/coupons/:code/toggle", adminAuthMiddleware, async (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const coupon = await db.select().from(coupons).where(eq(coupons.code, code)).then(r => r[0]);
+  if (!coupon) { res.status(404).json({ error: "Coupon not found" }); return; }
+  await db.update(coupons).set({ isActive: !coupon.isActive }).where(eq(coupons.code, code));
+  res.json({ success: true, isActive: !coupon.isActive });
+});
+
+/** DELETE /api/admin/coupons/:code */
+router.delete("/admin/coupons/:code", adminAuthMiddleware, async (req, res) => {
+  const code = req.params.code.toUpperCase();
+  await db.delete(coupons).where(eq(coupons.code, code));
+  res.json({ success: true });
+});
+
+/** GET /api/admin/api-usage — top APIs by usage */
+router.get("/admin/api-usage", adminAuthMiddleware, async (req, res) => {
+  const usage = await db
+    .select({
+      slug: osintHistory.slug,
+      apiName: osintHistory.apiName,
+      count: sql<number>`count(*)::int`,
+      successCount: sql<number>`sum(case when ${osintHistory.success} = true then 1 else 0 end)::int`,
+    })
+    .from(osintHistory)
+    .groupBy(osintHistory.slug, osintHistory.apiName)
+    .orderBy(desc(sql`count(*)`))
+    .limit(15);
+  res.json(usage);
+});
+
+/** GET /api/admin/scheduled-broadcasts */
+router.get("/admin/scheduled-broadcasts", adminAuthMiddleware, async (req, res) => {
+  const list = await db.select().from(scheduledBroadcasts).orderBy(desc(scheduledBroadcasts.scheduledAt));
+  res.json(list.map(b => ({ ...b, scheduledAt: b.scheduledAt.toISOString(), sentAt: b.sentAt?.toISOString() || null, createdAt: b.createdAt.toISOString() })));
+});
+
+/** POST /api/admin/scheduled-broadcasts */
+router.post("/admin/scheduled-broadcasts", adminAuthMiddleware, async (req, res) => {
+  const title = String(req.body?.title || "").trim();
+  const message = String(req.body?.message || "").trim();
+  const type = String(req.body?.type || "info").trim();
+  const scheduledAt = new Date(req.body?.scheduledAt);
+  if (!title || !message || isNaN(scheduledAt.getTime())) { res.status(400).json({ error: "title, message, scheduledAt required" }); return; }
+  const [created] = await db.insert(scheduledBroadcasts).values({ title, message, type, scheduledAt, sent: false }).returning();
+  res.json({ success: true, scheduled: { ...created, scheduledAt: created.scheduledAt.toISOString(), sentAt: null, createdAt: created.createdAt.toISOString() } });
+});
+
+/** DELETE /api/admin/scheduled-broadcasts/:id */
+router.delete("/admin/scheduled-broadcasts/:id", adminAuthMiddleware, async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  await db.delete(scheduledBroadcasts).where(eq(scheduledBroadcasts.id, id));
+  res.json({ success: true });
+});
+
+// Background: process scheduled broadcasts every 30 seconds
+async function processScheduledBroadcasts() {
+  try {
+    const due = await db.select().from(scheduledBroadcasts)
+      .where(and(eq(scheduledBroadcasts.sent, false), lte(scheduledBroadcasts.scheduledAt, new Date())));
+    for (const sb of due) {
+      await db.insert(broadcasts).values({ title: sb.title, message: sb.message, type: sb.type });
+      await db.update(scheduledBroadcasts).set({ sent: true, sentAt: new Date() }).where(eq(scheduledBroadcasts.id, sb.id));
+    }
+  } catch { /* silent */ }
+}
+setInterval(processScheduledBroadcasts, 30_000);
+processScheduledBroadcasts().catch(() => {});
 
 /** POST /api/admin/2fa/verify — verify TOTP before saving secret */
 router.post("/admin/2fa/verify", adminAuthMiddleware, async (req, res) => {

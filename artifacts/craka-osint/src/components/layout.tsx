@@ -15,7 +15,11 @@ import {
   Moon,
   Languages,
   LogIn,
+  Bell,
+  User,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 import { useAuthStore } from "@/lib/auth";
 import { useUserStore } from "@/lib/user-store";
 import { TokenBadge } from "@/components/token-badge";
@@ -37,6 +41,21 @@ export function Layout({ children }: LayoutProps) {
   const { theme, toggle: toggleTheme } = useTheme();
   const { lang, toggle: toggleLang, t } = useT();
   useEnsureUserInitialized();
+
+  const STORAGE_KEY = "craka_read_broadcasts";
+  const { data: broadcastList = [] } = useQuery({
+    queryKey: ["public-broadcasts"],
+    queryFn: async () => customFetch("/api/broadcasts") as Promise<any[]>,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  const unreadCount = (() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const readIds: number[] = raw ? JSON.parse(raw) : [];
+      return (broadcastList as any[]).filter((b: any) => !readIds.includes(b.id)).length;
+    } catch { return 0; }
+  })();
 
   const navItems = [
     { href: "/",             labelKey: "nav.terminal",     fallback: "Terminal",     icon: Terminal },
@@ -139,6 +158,45 @@ export function Layout({ children }: LayoutProps) {
           >
             <Gift className="w-4 h-4" />
             <span className="text-sm font-medium">{t("nav.refer", "Refer & Earn")}</span>
+          </div>
+        </Link>
+
+        <div className="pt-3 pb-1">
+          <div className="text-xs text-muted-foreground font-semibold mb-2 uppercase tracking-widest">
+            Account
+          </div>
+        </div>
+
+        <Link href="/profile">
+          <div
+            onClick={() => setSidebarOpen(false)}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer transition-all ${
+              location === "/profile"
+                ? "bg-primary/10 text-primary border border-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            <User className="w-4 h-4" />
+            <span className="text-sm font-medium">Profile</span>
+          </div>
+        </Link>
+
+        <Link href="/notifications">
+          <div
+            onClick={() => setSidebarOpen(false)}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer transition-all ${
+              location === "/notifications"
+                ? "bg-primary/10 text-primary border border-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            <Bell className="w-4 h-4" />
+            <span className="text-sm font-medium">Notifications</span>
+            {unreadCount > 0 && (
+              <span className="ml-auto text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                {unreadCount}
+              </span>
+            )}
           </div>
         </Link>
       </nav>

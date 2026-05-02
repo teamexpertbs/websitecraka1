@@ -57,23 +57,18 @@ export const crakaUsers = pgTable("craka_users", {
   premiumExpiresAt: timestamp("premium_expires_at"),
   creditsEarned: integer("credits_earned").notNull().default(0),
   totalReferrals: integer("total_referrals").notNull().default(0),
-  // Google OAuth fields
   googleId: text("google_id").unique(),
   email: text("email"),
   displayName: text("display_name"),
   avatarUrl: text("avatar_url"),
-  // Email verification & magic link
   emailVerified: boolean("email_verified").notNull().default(false),
   magicLinkToken: text("magic_link_token"),
   magicLinkExpiry: timestamp("magic_link_expiry"),
-  // Email/password auth
   passwordHash: text("password_hash"),
   passwordResetToken: text("password_reset_token"),
   passwordResetExpiry: timestamp("password_reset_expiry"),
-  // Admin 2FA
   twoFaSecret: text("two_fa_secret"),
   twoFaEnabled: boolean("two_fa_enabled").notNull().default(false),
-  // Ban
   isBanned: boolean("is_banned").notNull().default(false),
   banReason: text("ban_reason"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -123,8 +118,8 @@ export type CrakaReferral = typeof crakaReferrals.$inferSelect;
 export const osintTokenTransactions = pgTable("osint_token_transactions", {
   id: serial("id").primaryKey(),
   sessionId: text("session_id").notNull(),
-  type: text("type").notNull(), // 'spend' | 'refund' | 'earn' | 'grant' | 'bonus' | 'init'
-  amount: integer("amount").notNull(), // signed: negative = spent, positive = earned
+  type: text("type").notNull(),
+  amount: integer("amount").notNull(),
   reason: text("reason").notNull(),
   balanceAfter: integer("balance_after").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -133,3 +128,58 @@ export const osintTokenTransactions = pgTable("osint_token_transactions", {
 export const insertOsintTokenTransactionSchema = createInsertSchema(osintTokenTransactions).omit({ id: true, createdAt: true });
 export type InsertOsintTokenTransaction = z.infer<typeof insertOsintTokenTransactionSchema>;
 export type OsintTokenTransaction = typeof osintTokenTransactions.$inferSelect;
+
+export const bookmarks = pgTable("bookmarks", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  slug: text("slug").notNull(),
+  apiName: text("api_name").notNull(),
+  queryVal: text("query_val").notNull(),
+  label: text("label"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertBookmarkSchema = createInsertSchema(bookmarks).omit({ id: true, createdAt: true });
+export type InsertBookmark = z.infer<typeof insertBookmarkSchema>;
+export type Bookmark = typeof bookmarks.$inferSelect;
+
+export const coupons = pgTable("coupons", {
+  id: serial("id").primaryKey(),
+  code: text("code").unique().notNull(),
+  description: text("description"),
+  credits: integer("credits").notNull().default(10),
+  maxUses: integer("max_uses").notNull().default(1),
+  usedCount: integer("used_count").notNull().default(0),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertCouponSchema = createInsertSchema(coupons).omit({ id: true, createdAt: true });
+export type InsertCoupon = z.infer<typeof insertCouponSchema>;
+export type Coupon = typeof coupons.$inferSelect;
+
+export const couponUses = pgTable("coupon_uses", {
+  id: serial("id").primaryKey(),
+  couponCode: text("coupon_code").notNull(),
+  sessionId: text("session_id").notNull(),
+  creditsAwarded: integer("credits_awarded").notNull(),
+  usedAt: timestamp("used_at").defaultNow().notNull(),
+});
+
+export type CouponUse = typeof couponUses.$inferSelect;
+
+export const scheduledBroadcasts = pgTable("scheduled_broadcasts", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: text("type").notNull().default("info"),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  sent: boolean("sent").notNull().default(false),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertScheduledBroadcastSchema = createInsertSchema(scheduledBroadcasts).omit({ id: true, createdAt: true });
+export type InsertScheduledBroadcast = z.infer<typeof insertScheduledBroadcastSchema>;
+export type ScheduledBroadcast = typeof scheduledBroadcasts.$inferSelect;

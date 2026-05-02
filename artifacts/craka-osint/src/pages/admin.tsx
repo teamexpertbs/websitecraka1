@@ -18,7 +18,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Shield, Lock, Activity, Database, Trash2, Plus, Edit2, KeyRound, Crown, Check, Users, HeartPulse, RefreshCw, Smartphone, FileText, CheckCircle, XCircle, Globe, Clock, Ban, Coins, Megaphone, AlertTriangle, Info, Bell, Send, ChevronDown, ChevronUp } from "lucide-react";
+import { Shield, Lock, Activity, Database, Trash2, Plus, Edit2, KeyRound, Crown, Check, Users, HeartPulse, RefreshCw, Smartphone, FileText, CheckCircle, XCircle, Globe, Clock, Ban, Coins, Megaphone, AlertTriangle, Info, Bell, Send, ChevronDown, ChevronUp, Ticket, BarChart2, Calendar, Search } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from "recharts";
 import { useQueryClient } from "@tanstack/react-query";
 
 function AdminLayout({ children, minimal }: { children: React.ReactNode; minimal?: boolean }) {
@@ -277,6 +278,30 @@ function AdminDashboard() {
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [usersExpanded, setUsersExpanded] = useState(true);
+  const [userSearch, setUserSearch] = useState("");
+
+  // Coupons state
+  const [couponList, setCouponList] = useState<any[]>([]);
+  const [couponsLoading, setCouponsLoading] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [couponCredits, setCouponCredits] = useState("10");
+  const [couponMaxUses, setCouponMaxUses] = useState("1");
+  const [couponDesc, setCouponDesc] = useState("");
+  const [couponExpiry, setCouponExpiry] = useState("");
+  const [couponCreating, setCouponCreating] = useState(false);
+
+  // API Usage state
+  const [apiUsage, setApiUsage] = useState<any[]>([]);
+  const [apiUsageLoading, setApiUsageLoading] = useState(false);
+
+  // Scheduled Broadcasts state
+  const [scheduledBcasts, setScheduledBcasts] = useState<any[]>([]);
+  const [sbLoading, setSbLoading] = useState(false);
+  const [sbTitle, setSbTitle] = useState("");
+  const [sbMessage, setSbMessage] = useState("");
+  const [sbType, setSbType] = useState("info");
+  const [sbAt, setSbAt] = useState("");
+  const [sbCreating, setSbCreating] = useState(false);
 
   const fetchApiHealth = async () => {
     setHealthLoading(true);
@@ -304,11 +329,97 @@ function AdminDashboard() {
     } catch { /* silent */ } finally { setBroadcastsLoading(false); }
   };
 
+  const fetchCoupons = async () => {
+    setCouponsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/coupons`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setCouponList(Array.isArray(data) ? data : []);
+    } catch { } finally { setCouponsLoading(false); }
+  };
+
+  const fetchApiUsage = async () => {
+    setApiUsageLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/api-usage`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setApiUsage(Array.isArray(data) ? data : []);
+    } catch { } finally { setApiUsageLoading(false); }
+  };
+
+  const fetchScheduledBcasts = async () => {
+    setSbLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/scheduled-broadcasts`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setScheduledBcasts(Array.isArray(data) ? data : []);
+    } catch { } finally { setSbLoading(false); }
+  };
+
+  const handleCreateCoupon = async () => {
+    if (!couponCode.trim() || !couponCredits) return;
+    setCouponCreating(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/coupons`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: couponCode.trim().toUpperCase(), credits: Number(couponCredits), maxUses: Number(couponMaxUses) || 1, description: couponDesc, expiresAt: couponExpiry || null }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Coupon Created!", description: `Code: ${couponCode.toUpperCase()}` });
+        setCouponCode(""); setCouponDesc(""); setCouponExpiry(""); setCouponCredits("10"); setCouponMaxUses("1");
+        fetchCoupons();
+      } else { toast({ title: "Error", description: data.error, variant: "destructive" }); }
+    } catch { toast({ title: "Error", description: "Network error", variant: "destructive" }); }
+    finally { setCouponCreating(false); }
+  };
+
+  const handleToggleCoupon = async (code: string) => {
+    try {
+      await fetch(`${API_BASE}/api/admin/coupons/${code}/toggle`, { method: "PATCH", headers: { Authorization: `Bearer ${token}` } });
+      fetchCoupons();
+    } catch { }
+  };
+
+  const handleDeleteCoupon = async (code: string) => {
+    if (!confirm(`Delete coupon ${code}?`)) return;
+    await fetch(`${API_BASE}/api/admin/coupons/${code}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    fetchCoupons();
+  };
+
+  const handleCreateScheduledBcast = async () => {
+    if (!sbTitle.trim() || !sbMessage.trim() || !sbAt) return;
+    setSbCreating(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/scheduled-broadcasts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title: sbTitle.trim(), message: sbMessage.trim(), type: sbType, scheduledAt: sbAt }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Scheduled!", description: `Broadcast scheduled for ${new Date(sbAt).toLocaleString()}` });
+        setSbTitle(""); setSbMessage(""); setSbAt(""); setSbType("info");
+        fetchScheduledBcasts();
+      } else { toast({ title: "Error", description: data.error, variant: "destructive" }); }
+    } catch { toast({ title: "Error", description: "Network error", variant: "destructive" }); }
+    finally { setSbCreating(false); }
+  };
+
+  const handleDeleteScheduledBcast = async (id: number) => {
+    await fetch(`${API_BASE}/api/admin/scheduled-broadcasts/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    fetchScheduledBcasts();
+  };
+
   useEffect(() => {
     if (token) {
       fetchUsers();
       fetchApiHealth();
       fetchBroadcasts();
+      fetchCoupons();
+      fetchApiUsage();
+      fetchScheduledBcasts();
     }
   }, [token]);
 
@@ -554,6 +665,19 @@ function AdminDashboard() {
                 </Button>
               </div>
             </div>
+            {usersExpanded && (
+              <div className="mt-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Filter by email, name, code, plan..."
+                    value={userSearch}
+                    onChange={e => setUserSearch(e.target.value)}
+                    className="pl-9 bg-muted/30 border-border h-9"
+                  />
+                </div>
+              </div>
+            )}
           </CardHeader>
           {usersExpanded && (
           <CardContent className="p-0">
@@ -571,14 +695,22 @@ function AdminDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.length === 0 && !usersLoading ? (
-                  <TableRow className="border-border hover:bg-muted/30">
-                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">
-                      {usersError || "No users yet."}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  users.map((user) => (
+                {(() => {
+                    const q = userSearch.toLowerCase();
+                    const filtered = q ? users.filter(u =>
+                      (u.email || "").toLowerCase().includes(q) ||
+                      (u.referralCode || "").toLowerCase().includes(q) ||
+                      (u.displayName || "").toLowerCase().includes(q) ||
+                      (u.premiumPlan || "").toLowerCase().includes(q)
+                    ) : users;
+                    if (filtered.length === 0) return (
+                      <TableRow className="border-border hover:bg-muted/30">
+                        <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-6">
+                          {usersError || (q ? "No users match your search." : "No users yet.")}
+                        </TableCell>
+                      </TableRow>
+                    );
+                    return filtered.map((user) => (
                     <TableRow key={user.referralCode} className={`border-border hover:bg-muted/30 ${user.isBanned ? "bg-destructive/5" : ""}`}>
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
@@ -668,13 +800,201 @@ function AdminDashboard() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
+                  ));
+                  })()}
               </TableBody>
             </Table>
             </div>
           </CardContent>
           )}
+        </Card>
+
+        {/* API Usage Chart */}
+        <Card className="bg-card border-border overflow-hidden">
+          <CardHeader className="bg-muted/40 border-b border-border flex items-center justify-between gap-4">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <BarChart2 className="w-5 h-5 text-primary" />
+              API Usage Chart (Last 30 Days)
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={fetchApiUsage} disabled={apiUsageLoading} className="h-9 gap-2">
+              <RefreshCw className={`w-3.5 h-3.5 ${apiUsageLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </CardHeader>
+          <CardContent className="p-4">
+            {apiUsage.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground text-sm">
+                {apiUsageLoading ? "Loading..." : "No usage data available yet."}
+              </div>
+            ) : (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={apiUsage} margin={{ top: 4, right: 4, left: -20, bottom: 30 }}>
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#888" }} angle={-35} textAnchor="end" interval={0} />
+                    <YAxis tick={{ fontSize: 10, fill: "#888" }} />
+                    <RechartsTooltip
+                      contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                      cursor={{ fill: "hsl(var(--muted)/0.3)" }}
+                      formatter={(value: any, name: string) => [value, name === "total" ? "Total" : "Success"]}
+                    />
+                    <Bar dataKey="total" name="total" fill="hsl(var(--primary))" radius={[3,3,0,0]} maxBarSize={40} />
+                    <Bar dataKey="success" name="success" fill="#10b981" radius={[3,3,0,0]} maxBarSize={40} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Coupons / Promo Codes */}
+        <Card className="bg-gradient-to-r from-purple-900/10 to-purple-700/10 border-purple-500/30 overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b border-purple-500/20 pb-4">
+            <CardTitle className="text-lg flex items-center gap-2 text-purple-400">
+              <Ticket className="w-5 h-5" />
+              Coupon / Promo Codes
+            </CardTitle>
+            <CardDescription className="text-muted-foreground text-sm">
+              Create discount/promo codes that users can redeem for credits.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-5 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Code</Label>
+                <Input value={couponCode} onChange={e => setCouponCode(e.target.value.toUpperCase())} placeholder="SUMMER50" className="bg-muted/50 border-purple-500/30 font-mono uppercase" />
+              </div>
+              <div>
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Credits</Label>
+                <Input type="number" value={couponCredits} onChange={e => setCouponCredits(e.target.value)} placeholder="50" className="bg-muted/50 border-purple-500/30 font-mono" />
+              </div>
+              <div>
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Max Uses</Label>
+                <Input type="number" value={couponMaxUses} onChange={e => setCouponMaxUses(e.target.value)} placeholder="1" className="bg-muted/50 border-purple-500/30 font-mono" />
+              </div>
+              <div>
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Description</Label>
+                <Input value={couponDesc} onChange={e => setCouponDesc(e.target.value)} placeholder="Optional description..." className="bg-muted/50 border-purple-500/30" />
+              </div>
+              <div>
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Expires At</Label>
+                <Input type="datetime-local" value={couponExpiry} onChange={e => setCouponExpiry(e.target.value)} className="bg-muted/50 border-purple-500/30" />
+              </div>
+              <div className="sm:self-end">
+                <Button onClick={handleCreateCoupon} disabled={couponCreating || !couponCode.trim() || !couponCredits} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold">
+                  {couponCreating ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                  Create Coupon
+                </Button>
+              </div>
+            </div>
+            {couponList.length > 0 && (
+              <div className="mt-4 border-t border-purple-500/20 pt-4 overflow-x-auto">
+                <p className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-3">All Coupons</p>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead>Code</TableHead>
+                      <TableHead>Credits</TableHead>
+                      <TableHead>Uses</TableHead>
+                      <TableHead>Expires</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {couponList.map(c => (
+                      <TableRow key={c.code} className="border-border hover:bg-muted/30">
+                        <TableCell className="font-mono font-bold text-purple-400">{c.code}</TableCell>
+                        <TableCell><span className="font-mono text-primary font-bold">+{c.credits}</span></TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{c.usedCount ?? 0}/{c.maxUses}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : "Never"}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={c.isActive ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10 text-[10px]" : "border-zinc-600 text-muted-foreground text-[10px]"}>
+                            {c.isActive ? "ACTIVE" : "OFF"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-1 justify-end">
+                            <Button variant="outline" size="sm" onClick={() => handleToggleCoupon(c.code)} className="h-7 text-xs px-2">
+                              {c.isActive ? "Disable" : "Enable"}
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteCoupon(c.code)} className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Scheduled Broadcasts */}
+        <Card className="bg-gradient-to-r from-indigo-900/10 to-indigo-700/10 border-indigo-500/30 overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b border-indigo-500/20 pb-4">
+            <CardTitle className="text-lg flex items-center gap-2 text-indigo-400">
+              <Calendar className="w-5 h-5" />
+              Scheduled Broadcasts
+            </CardTitle>
+            <CardDescription className="text-muted-foreground text-sm">
+              Future mein automatically broadcast karne ke liye schedule karo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-5 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Title</Label>
+                <Input value={sbTitle} onChange={e => setSbTitle(e.target.value)} placeholder="Announcement title..." className="bg-muted/50 border-indigo-500/30" />
+              </div>
+              <div>
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Type</Label>
+                <select value={sbType} onChange={e => setSbType(e.target.value)} className="w-full h-10 rounded-md border border-indigo-500/30 bg-muted/50 text-foreground px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
+                  <option value="info">Info</option>
+                  <option value="success">Success</option>
+                  <option value="warning">Warning</option>
+                  <option value="danger">Danger</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Message</Label>
+                <textarea value={sbMessage} onChange={e => setSbMessage(e.target.value)} rows={2} placeholder="Broadcast message..." className="w-full rounded-md border border-indigo-500/30 bg-muted/50 text-foreground px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none" />
+              </div>
+              <div>
+                <Label className="font-mono text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Scheduled At</Label>
+                <Input type="datetime-local" value={sbAt} onChange={e => setSbAt(e.target.value)} className="bg-muted/50 border-indigo-500/30" />
+              </div>
+              <div className="sm:self-end">
+                <Button onClick={handleCreateScheduledBcast} disabled={sbCreating || !sbTitle.trim() || !sbMessage.trim() || !sbAt} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold">
+                  {sbCreating ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" /> : <Calendar className="w-4 h-4 mr-2" />}
+                  Schedule
+                </Button>
+              </div>
+            </div>
+            {scheduledBcasts.length > 0 && (
+              <div className="mt-4 border-t border-indigo-500/20 pt-4 space-y-2 max-h-64 overflow-y-auto pr-1">
+                <p className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-3">Upcoming Scheduled</p>
+                {scheduledBcasts.map(sb => (
+                  <div key={sb.id} className="flex items-start gap-3 p-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 text-sm">
+                    <Calendar className="w-4 h-4 text-indigo-400 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{sb.title}</p>
+                      <p className="text-muted-foreground text-xs mt-0.5">{sb.message}</p>
+                      <p className="text-[10px] text-indigo-400/70 mt-1 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {new Date(sb.scheduledAt).toLocaleString()}
+                        {sb.sent && <Badge variant="outline" className="ml-2 text-[9px] border-emerald-500/40 text-emerald-400 bg-emerald-500/10">SENT</Badge>}
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => handleDeleteScheduledBcast(sb.id)} className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-r from-yellow-400/5 to-yellow-400/10 border-yellow-400/30 overflow-hidden">

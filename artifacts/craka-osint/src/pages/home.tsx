@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useListApis, usePerformLookup } from "@workspace/api-client-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useListApis, usePerformLookup, customFetch } from "@workspace/api-client-react";
 import { ensureUserInitialized, getOrCreateSession } from "@/lib/session";
 import { useCurrentUser, useRefreshCurrentUser, isUnlimitedUser } from "@/lib/user";
 import { BuyTokensModal } from "@/components/buy-tokens-modal";
@@ -10,11 +11,67 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import {
   Terminal, Search, ShieldAlert, Cpu, CheckCircle2, AlertCircle,
-  Copy, Check, Download, Share2, Languages, ExternalLink
+  Copy, Check, Download, Share2, Languages, ExternalLink,
+  Bookmark, BookmarkCheck, Bell, X, Info, Zap, AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CATEGORIES = ["All", "Phone", "Identity", "Vehicle", "Banking", "Location", "Network", "Email", "Social", "Gaming"];
+
+const BROADCAST_STORAGE_KEY = "craka_read_broadcasts";
+
+function BroadcastsBanner() {
+  const { data: broadcasts = [] } = useQuery({
+    queryKey: ["public-broadcasts"],
+    queryFn: async () => customFetch("/api/broadcasts") as Promise<any[]>,
+    staleTime: 60_000,
+  });
+
+  const [dismissed, setDismissed] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem(BROADCAST_STORAGE_KEY);
+      return raw ? new Set(JSON.parse(raw) as number[]) : new Set();
+    } catch { return new Set(); }
+  });
+
+  const visible = (broadcasts as any[]).filter((b: any) => !dismissed.has(b.id)).slice(0, 3);
+  if (visible.length === 0) return null;
+
+  const dismiss = (id: number) => {
+    const next = new Set(dismissed).add(id);
+    setDismissed(next);
+    localStorage.setItem(BROADCAST_STORAGE_KEY, JSON.stringify([...next]));
+  };
+
+  const typeStyle = (type: string) => {
+    if (type === "success") return { bar: "bg-green-400", bg: "bg-green-400/8 border-green-400/20", icon: <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" /> };
+    if (type === "warning") return { bar: "bg-yellow-400", bg: "bg-yellow-400/8 border-yellow-400/20", icon: <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0" /> };
+    if (type === "error") return { bar: "bg-destructive", bg: "bg-destructive/8 border-destructive/20", icon: <AlertCircle className="w-4 h-4 text-destructive shrink-0" /> };
+    if (type === "promo") return { bar: "bg-purple-400", bg: "bg-purple-400/8 border-purple-400/20", icon: <Zap className="w-4 h-4 text-purple-400 shrink-0" /> };
+    return { bar: "bg-primary", bg: "bg-primary/8 border-primary/20", icon: <Bell className="w-4 h-4 text-primary shrink-0" /> };
+  };
+
+  return (
+    <div className="space-y-2 mb-4">
+      {visible.map((b: any) => {
+        const s = typeStyle(b.type);
+        return (
+          <div key={b.id} className={`flex items-start gap-3 px-4 py-3 rounded-lg border ${s.bg} relative overflow-hidden`}>
+            <div className={`absolute left-0 top-0 bottom-0 w-1 ${s.bar} rounded-l-lg`} />
+            {s.icon}
+            <div className="flex-1 min-w-0 pl-1">
+              <p className="text-sm font-semibold text-foreground">{b.title}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{b.message}</p>
+            </div>
+            <button onClick={() => dismiss(b.id)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function flattenData(data: Record<string, unknown>, prefix = ""): Array<{ key: string; value: string }> {
   const rows: Array<{ key: string; value: string }> = [];
@@ -103,17 +160,38 @@ function hindiValue(value: string): string {
 interface ResultRow { key: string; value: string }
 
 function ResultViewer({
-  rows, apiName, query, cached
+  rows, apiName, query, cached, slug, sessionId
 }: {
   rows: ResultRow[];
   apiName: string;
   query: string;
   cached: boolean;
+  slug?: string;
+  sessionId?: string;
 }) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showHindi, setShowHindi] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
   const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const handleBookmark = async () => {
+    if (!sessionId || !slug) { toast({ title: "Sign in to save bookmarks", variant: "destructive" }); return; }
+    try {
+      await customFetch("/api/user/bookmarks", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, slug, apiName, queryVal: query, label: `${apiName}: ${query}` }),
+      });
+      setBookmarked(true);
+      qc.invalidateQueries({ queryKey: ["bookmarks", sessionId] });
+      toast({ title: "Saved!", description: "Lookup saved to your bookmarks." });
+    } catch (e: any) {
+      const msg = e?.data?.error || "Already bookmarked";
+      if (msg.includes("Already")) { setBookmarked(true); toast({ title: "Already bookmarked" }); }
+      else toast({ title: "Failed to bookmark", variant: "destructive" });
+    }
+  };
 
   const display = rows.filter(r => r.key !== "Developer" && r.value !== "—");
 
@@ -205,6 +283,17 @@ function ResultViewer({
         >
           <Share2 className="w-3.5 h-3.5" />
           Share
+        </button>
+        <button
+          onClick={handleBookmark}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold border transition-all ${
+            bookmarked
+              ? "bg-primary/10 border-primary/40 text-primary"
+              : "bg-card border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
+          }`}
+        >
+          {bookmarked ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+          {bookmarked ? "Saved" : "Save"}
         </button>
         {cached && (
           <span className="ml-auto flex items-center gap-1 text-[10px] text-yellow-400/70 border border-yellow-400/20 bg-yellow-400/5 rounded px-2 py-1">
@@ -362,6 +451,7 @@ export default function Home() {
   return (
     <Layout>
       <div className="max-w-5xl mx-auto space-y-5">
+        <BroadcastsBanner />
         <header className="mb-5">
           <h1 className="text-2xl sm:text-3xl font-bold text-primary flex items-center gap-3">
             <Terminal className="w-7 h-7 sm:w-8 sm:h-8" />
@@ -513,6 +603,8 @@ export default function Home() {
                       apiName={result.apiName}
                       query={lastQuery}
                       cached={result.cached}
+                      slug={selectedApiSlug || undefined}
+                      sessionId={getOrCreateSession()}
                     />
                   ) : (
                     <div className="p-6 text-destructive text-sm">

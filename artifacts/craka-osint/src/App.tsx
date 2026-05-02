@@ -20,6 +20,8 @@ import ForgotPassword from "@/pages/forgot-password";
 import MagicLogin from "@/pages/magic-login";
 import VerifyEmail from "@/pages/verify-email";
 import ResetPassword from "@/pages/reset-password";
+import Profile from "@/pages/profile";
+import Notifications from "@/pages/notifications";
 
 const queryClient = new QueryClient();
 
@@ -54,6 +56,8 @@ function Router() {
             <Route path="/transactions" component={Transactions} />
             <Route path="/premium" component={Premium} />
             <Route path="/refer" component={Refer} />
+            <Route path="/profile" component={Profile} />
+            <Route path="/notifications" component={Notifications} />
             <Route component={NotFound} />
           </Switch>
         </AuthGuard>

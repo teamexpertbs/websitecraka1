@@ -43,17 +43,17 @@ const DEFAULT_APIS = [
   { slug: "ffban",    name: "FF Ban Check",   url: "https://abbas-apis.vercel.app/api/ff-ban?uid={query}",                           command: "/ffban",    example: "123456789",        pattern: "^\\d{5,15}$",                                                                  category: "Gaming",   credits: 1 },
   { slug: "gstin",    name: "GSTIN Lookup",   url: "https://sheet.amorinthz.workers.dev/gst?gstin={query}",                          command: "/gstin",    example: "27AAPFU0939F1ZV", pattern: "^\\d{2}[A-Z]{5}\\d{4}[A-Z]\\d[Z][\\dA-Z]$",                                  category: "Identity", credits: 1 },
   { slug: "domain",   name: "Domain WHOIS",   url: "https://api.whois.vu/?q={query}",                                                command: "/domain",   example: "example.com",      pattern: null,                                                                           category: "Network",  credits: 1 },
+  { slug: "github",   name: "GitHub User",    url: "https://api.github.com/users/{query}",                                            command: "/github",   example: "torvalds",         pattern: "^[\\w\\-\\.]{1,39}$",                                                          category: "Social",   credits: 1 },
+  { slug: "dl",       name: "Driving License",url: "https://exploitsindia.site/api/dl.php?exploits={query}",                          command: "/dl",       example: "HR26 20110012345", pattern: null,                                                                           category: "Identity", credits: 1 },
+  { slug: "discord",  name: "Discord User",   url: "https://discord-lookup-api.vercel.app/v1/users/{query}",                          command: "/discord",  example: "1234567890123456", pattern: "^\\d{15,20}$",                                                                 category: "Social",   credits: 1 },
+  { slug: "pubg",     name: "PUBG/BGMI",      url: "https://abbas-apis.vercel.app/api/pubg?id={query}",                               command: "/pubg",     example: "123456789",        pattern: "^\\d{5,15}$",                                                                  category: "Gaming",   credits: 1 },
+  { slug: "twitter",  name: "Twitter/X User", url: "https://api.socialdata.tools/twitter/user/{query}",                               command: "/twitter",  example: "elonmusk",         pattern: "^[\\w]{1,50}$",                                                                category: "Social",   credits: 1 },
+  { slug: "aadhaar2", name: "Aadhaar-Mobile", url: "https://exploitsindia.site/api/aadhar_mobile.php?exploits={query}",               command: "/aadhaar2", example: "882838027159",     pattern: "^\\d{12}$",                                                                    category: "Identity", credits: 1 },
 ];
 
 async function seedDefaultApis() {
-  const count = await db.select({ count: sql<number>`count(*)` }).from(osintApis);
-  if (Number(count[0].count) === 0) {
-    for (const api of DEFAULT_APIS) {
-      await db.insert(osintApis).values({
-        ...api,
-        isActive: true,
-      }).onConflictDoNothing();
-    }
+  for (const api of DEFAULT_APIS) {
+    await db.insert(osintApis).values({ ...api, isActive: true }).onConflictDoNothing();
   }
 }
 

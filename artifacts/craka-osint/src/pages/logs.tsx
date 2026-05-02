@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { History, Search, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Lock } from "lucide-react";
+import { History, Search, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Lock, Download } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Logs() {
@@ -55,14 +55,60 @@ export default function Logs() {
             </h1>
             <p className="text-muted-foreground mt-1.5 text-sm">Your personal search history and execution records.</p>
           </div>
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search logs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 bg-muted/30 border-border"
-            />
+          <div className="flex gap-2 items-center flex-wrap">
+            <div className="relative w-full sm:w-52">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search logs..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 bg-muted/30 border-border"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-border text-muted-foreground hover:text-foreground"
+              disabled={filteredEntries.length === 0}
+              onClick={() => {
+                const headers = ["Timestamp", "API", "Query", "Status"];
+                const rows = filteredEntries.map(e => [
+                  format(new Date(e.createdAt), "yyyy-MM-dd HH:mm:ss"),
+                  e.apiName,
+                  e.queryVal,
+                  e.success ? "OK" : "FAIL",
+                ]);
+                const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+                a.download = `craka_logs_${Date.now()}.csv`;
+                a.click();
+              }}
+            >
+              <Download className="w-3.5 h-3.5" />
+              CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-border text-muted-foreground hover:text-foreground"
+              disabled={filteredEntries.length === 0}
+              onClick={() => {
+                const exportData = filteredEntries.map(e => ({
+                  timestamp: format(new Date(e.createdAt), "yyyy-MM-dd HH:mm:ss"),
+                  api: e.apiName,
+                  query: e.queryVal,
+                  status: e.success ? "OK" : "FAIL",
+                }));
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" }));
+                a.download = `craka_logs_${Date.now()}.json`;
+                a.click();
+              }}
+            >
+              <Download className="w-3.5 h-3.5" />
+              JSON
+            </Button>
           </div>
         </header>
 
