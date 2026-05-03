@@ -185,12 +185,26 @@ router.post("/user/redeem-coupon", async (req, res): Promise<void> => {
   if (alreadyUsed) { res.status(400).json({ error: "You have already used this coupon" }); return; }
   const user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  const newBalance = user.creditsEarned + coupon.credits;
+  // Free plan users capped at FREE_PLAN_TOKENS — coupon credits only apply to premium users
+  const FREE_PLAN_MAX = 10;
+  const currentCredits = user.creditsEarned;
+  let actualCredits = coupon.credits;
+  if (!user.isPremium && currentCredits + coupon.credits > FREE_PLAN_MAX) {
+    actualCredits = Math.max(0, FREE_PLAN_MAX - currentCredits);
+    if (actualCredits === 0) {
+      res.status(400).json({ error: `Free plan token limit reached (${FREE_PLAN_MAX} tokens max). Upgrade to Premium to earn more.` });
+      return;
+    }
+  }
+  const newBalance = currentCredits + actualCredits;
   await db.update(crakaUsers).set({ creditsEarned: newBalance }).where(eq(crakaUsers.sessionId, sessionId));
-  await db.insert(couponUses).values({ couponCode: code, sessionId, creditsAwarded: coupon.credits });
+  await db.insert(couponUses).values({ couponCode: code, sessionId, creditsAwarded: actualCredits });
   await db.update(coupons).set({ usedCount: coupon.usedCount + 1 }).where(eq(coupons.code, code));
-  await logTokenTxn({ sessionId, type: "grant", amount: coupon.credits, reason: `Coupon redeemed: ${code}`, balanceAfter: newBalance });
-  res.json({ success: true, credits: coupon.credits, newBalance, message: `+${coupon.credits} credits added to your account!` });
+  await logTokenTxn({ sessionId, type: "grant", amount: actualCredits, reason: `Coupon redeemed: ${code}`, balanceAfter: newBalance });
+  const msg = actualCredits < coupon.credits
+    ? `+${actualCredits} credits added (free plan cap: ${FREE_PLAN_MAX} tokens). Upgrade to Premium for unlimited!`
+    : `+${actualCredits} credits added to your account!`;
+  res.json({ success: true, credits: actualCredits, newBalance, message: msg });
 });
 
 export default router;
