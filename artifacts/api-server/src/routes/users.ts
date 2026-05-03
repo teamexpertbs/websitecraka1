@@ -161,6 +161,58 @@ router.get("/user/bookmarks", async (req, res): Promise<void> => {
   }
 });
 
+/** POST /api/user/apply-referral — lets a user apply a friend's referral code if they haven't been referred yet */
+router.post("/user/apply-referral", async (req, res): Promise<void> => {
+  try {
+    const sessionId = String(req.body?.sessionId || "").trim();
+    const referralCode = String(req.body?.referralCode || "").trim().toUpperCase();
+    if (!sessionId || !referralCode) {
+      res.status(400).json({ error: "sessionId and referralCode required" });
+      return;
+    }
+    const user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    if (user.isBanned) { res.status(403).json({ error: "Your account has been suspended." }); return; }
+    if (user.referredBy) { res.status(400).json({ error: "Aapne pehle hi ek referral code apply kiya hua hai" }); return; }
+
+    const referrer = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, referralCode)).then(r => r[0]);
+    if (!referrer) { res.status(404).json({ error: "Invalid referral code" }); return; }
+    if (referrer.sessionId === sessionId) { res.status(400).json({ error: "Apna khud ka code apply nahi kar sakte" }); return; }
+
+    // Give referred user +5 bonus tokens
+    const newUserCredits = user.creditsEarned + 5;
+    await db.update(crakaUsers).set({ referredBy: referralCode, creditsEarned: sql`${crakaUsers.creditsEarned} + 5` }).where(eq(crakaUsers.sessionId, sessionId));
+    await logTokenTxn({ sessionId, type: "earn", amount: 5, reason: `Referral bonus — used code ${referralCode}`, balanceAfter: newUserCredits });
+
+    // Give referrer +2 tokens
+    const newTotal = referrer.totalReferrals + 1;
+    let updateData: any = {
+      totalReferrals: sql`${crakaUsers.totalReferrals} + 1`,
+      creditsEarned: sql`${crakaUsers.creditsEarned} + 2`,
+    };
+    if (newTotal === 20) {
+      const expiresAt = new Date(); expiresAt.setDate(expiresAt.getDate() + 30);
+      updateData.isPremium = true; updateData.premiumPlan = "Basic"; updateData.premiumExpiresAt = expiresAt;
+    } else if (newTotal === 50) {
+      const expiresAt = new Date(); expiresAt.setDate(expiresAt.getDate() + 30);
+      updateData.isPremium = true; updateData.premiumPlan = "Pro"; updateData.premiumExpiresAt = expiresAt;
+    } else if (newTotal === 100) {
+      const expiresAt = new Date(); expiresAt.setDate(expiresAt.getDate() + 30);
+      updateData.isPremium = true; updateData.premiumPlan = "Elite"; updateData.premiumExpiresAt = expiresAt;
+    }
+    const [updatedReferrer] = await db.update(crakaUsers).set(updateData).where(eq(crakaUsers.referralCode, referralCode)).returning({ creditsEarned: crakaUsers.creditsEarned });
+    await db.insert(crakaReferrals).values({ referrerCode: referralCode, referredSessionId: sessionId, creditsAwarded: 2 });
+    if (referrer.sessionId) {
+      await logTokenTxn({ sessionId: referrer.sessionId, type: "earn", amount: 2, reason: `Referral bonus — invited ${sessionId.slice(0, 12)}…`, balanceAfter: updatedReferrer?.creditsEarned ?? 0 });
+    }
+
+    res.json({ success: true, message: "Referral code apply ho gaya! +5 tokens aapko mile.", creditsEarned: newUserCredits });
+  } catch (err) {
+    logger.error({ err }, "Error applying referral code");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 /** POST /api/user/bookmarks */
 router.post("/user/bookmarks", async (req, res): Promise<void> => {
   try {
