@@ -148,69 +148,93 @@ router.get("/user/me", async (req, res): Promise<void> => {
 
 /** GET /api/user/bookmarks */
 router.get("/user/bookmarks", async (req, res): Promise<void> => {
-  const sessionId = String(req.query.sessionId || "").trim();
-  if (!sessionId) { res.status(400).json({ error: "sessionId required" }); return; }
-  const list = await db.select().from(bookmarks).where(eq(bookmarks.sessionId, sessionId)).orderBy(desc(bookmarks.createdAt));
-  res.json(list.map(b => ({ ...b, createdAt: b.createdAt.toISOString() })));
+  try {
+    const sessionId = String(req.query.sessionId || "").trim();
+    if (!sessionId) { res.status(400).json({ error: "sessionId required" }); return; }
+    const user = await db.select({ isBanned: crakaUsers.isBanned }).from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
+    if (user?.isBanned) { res.status(403).json({ error: "Your account has been suspended." }); return; }
+    const list = await db.select().from(bookmarks).where(eq(bookmarks.sessionId, sessionId)).orderBy(desc(bookmarks.createdAt));
+    res.json(list.map(b => ({ ...b, createdAt: b.createdAt.toISOString() })));
+  } catch (err) {
+    logger.error({ err }, "Error fetching bookmarks");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 /** POST /api/user/bookmarks */
 router.post("/user/bookmarks", async (req, res): Promise<void> => {
-  const sessionId = String(req.body?.sessionId || "").trim();
-  const slug = String(req.body?.slug || "").trim();
-  const apiName = String(req.body?.apiName || "").trim();
-  const queryVal = String(req.body?.queryVal || "").trim();
-  const label = String(req.body?.label || "").trim();
-  if (!sessionId || !slug || !queryVal) { res.status(400).json({ error: "sessionId, slug, queryVal required" }); return; }
-  const existing = await db.select().from(bookmarks).where(and(eq(bookmarks.sessionId, sessionId), eq(bookmarks.slug, slug), eq(bookmarks.queryVal, queryVal))).then(r => r[0]);
-  if (existing) { res.status(409).json({ error: "Already bookmarked" }); return; }
-  const [created] = await db.insert(bookmarks).values({ sessionId, slug, apiName, queryVal, label: label || `${apiName}: ${queryVal}` }).returning();
-  res.json({ success: true, bookmark: { ...created, createdAt: created.createdAt.toISOString() } });
+  try {
+    const sessionId = String(req.body?.sessionId || "").trim();
+    const slug = String(req.body?.slug || "").trim();
+    const apiName = String(req.body?.apiName || "").trim();
+    const queryVal = String(req.body?.queryVal || "").trim();
+    const label = String(req.body?.label || "").trim();
+    if (!sessionId || !slug || !queryVal) { res.status(400).json({ error: "sessionId, slug, queryVal required" }); return; }
+    const user = await db.select({ isBanned: crakaUsers.isBanned }).from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
+    if (user?.isBanned) { res.status(403).json({ error: "Your account has been suspended." }); return; }
+    const existing = await db.select().from(bookmarks).where(and(eq(bookmarks.sessionId, sessionId), eq(bookmarks.slug, slug), eq(bookmarks.queryVal, queryVal))).then(r => r[0]);
+    if (existing) { res.status(409).json({ error: "Already bookmarked" }); return; }
+    const [created] = await db.insert(bookmarks).values({ sessionId, slug, apiName, queryVal, label: label || `${apiName}: ${queryVal}` }).returning();
+    res.json({ success: true, bookmark: { ...created, createdAt: created.createdAt.toISOString() } });
+  } catch (err) {
+    logger.error({ err }, "Error saving bookmark");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 /** DELETE /api/user/bookmarks/:id */
 router.delete("/user/bookmarks/:id", async (req, res): Promise<void> => {
-  const id = Number(req.params.id);
-  const sessionId = String(req.query.sessionId || "").trim();
-  if (isNaN(id) || !sessionId) { res.status(400).json({ error: "Invalid request" }); return; }
-  await db.delete(bookmarks).where(and(eq(bookmarks.id, id), eq(bookmarks.sessionId, sessionId)));
-  res.json({ success: true });
+  try {
+    const id = Number(req.params.id);
+    const sessionId = String(req.query.sessionId || "").trim();
+    if (isNaN(id) || !sessionId) { res.status(400).json({ error: "Invalid request" }); return; }
+    await db.delete(bookmarks).where(and(eq(bookmarks.id, id), eq(bookmarks.sessionId, sessionId)));
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, "Error deleting bookmark");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 /** POST /api/user/redeem-coupon */
 router.post("/user/redeem-coupon", async (req, res): Promise<void> => {
-  const sessionId = String(req.body?.sessionId || "").trim();
-  const code = String(req.body?.code || "").trim().toUpperCase();
-  if (!sessionId || !code) { res.status(400).json({ error: "sessionId and code required" }); return; }
-  const coupon = await db.select().from(coupons).where(eq(coupons.code, code)).then(r => r[0]);
-  if (!coupon) { res.status(404).json({ error: "Invalid coupon code" }); return; }
-  if (!coupon.isActive) { res.status(400).json({ error: "This coupon is no longer active" }); return; }
-  if (coupon.expiresAt && new Date() > coupon.expiresAt) { res.status(400).json({ error: "Coupon has expired" }); return; }
-  if (coupon.usedCount >= coupon.maxUses) { res.status(400).json({ error: "Coupon has reached its usage limit" }); return; }
-  const alreadyUsed = await db.select().from(couponUses).where(and(eq(couponUses.couponCode, code), eq(couponUses.sessionId, sessionId))).then(r => r[0]);
-  if (alreadyUsed) { res.status(400).json({ error: "You have already used this coupon" }); return; }
-  const user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  // Free plan users capped at FREE_PLAN_TOKENS — coupon credits only apply to premium users
-  const FREE_PLAN_MAX = 10;
-  const currentCredits = user.creditsEarned;
-  let actualCredits = coupon.credits;
-  if (!user.isPremium && currentCredits + coupon.credits > FREE_PLAN_MAX) {
-    actualCredits = Math.max(0, FREE_PLAN_MAX - currentCredits);
-    if (actualCredits === 0) {
-      res.status(400).json({ error: `Free plan token limit reached (${FREE_PLAN_MAX} tokens max). Upgrade to Premium to earn more.` });
-      return;
+  try {
+    const sessionId = String(req.body?.sessionId || "").trim();
+    const code = String(req.body?.code || "").trim().toUpperCase();
+    if (!sessionId || !code) { res.status(400).json({ error: "sessionId and code required" }); return; }
+    const coupon = await db.select().from(coupons).where(eq(coupons.code, code)).then(r => r[0]);
+    if (!coupon) { res.status(404).json({ error: "Invalid coupon code" }); return; }
+    if (!coupon.isActive) { res.status(400).json({ error: "This coupon is no longer active" }); return; }
+    if (coupon.expiresAt && new Date() > coupon.expiresAt) { res.status(400).json({ error: "Coupon has expired" }); return; }
+    if (coupon.usedCount >= coupon.maxUses) { res.status(400).json({ error: "Coupon has reached its usage limit" }); return; }
+    const alreadyUsed = await db.select().from(couponUses).where(and(eq(couponUses.couponCode, code), eq(couponUses.sessionId, sessionId))).then(r => r[0]);
+    if (alreadyUsed) { res.status(400).json({ error: "You have already used this coupon" }); return; }
+    const user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    if (user.isBanned) { res.status(403).json({ error: "Your account has been suspended." }); return; }
+    const FREE_PLAN_MAX = 10;
+    const currentCredits = user.creditsEarned;
+    let actualCredits = coupon.credits;
+    if (!user.isPremium && currentCredits + coupon.credits > FREE_PLAN_MAX) {
+      actualCredits = Math.max(0, FREE_PLAN_MAX - currentCredits);
+      if (actualCredits === 0) {
+        res.status(400).json({ error: `Free plan token limit reached (${FREE_PLAN_MAX} tokens max). Upgrade to Premium to earn more.` });
+        return;
+      }
     }
+    const newBalance = currentCredits + actualCredits;
+    await db.update(crakaUsers).set({ creditsEarned: newBalance }).where(eq(crakaUsers.sessionId, sessionId));
+    await db.insert(couponUses).values({ couponCode: code, sessionId, creditsAwarded: actualCredits });
+    await db.update(coupons).set({ usedCount: coupon.usedCount + 1 }).where(eq(coupons.code, code));
+    await logTokenTxn({ sessionId, type: "grant", amount: actualCredits, reason: `Coupon redeemed: ${code}`, balanceAfter: newBalance });
+    const msg = actualCredits < coupon.credits
+      ? `+${actualCredits} credits added (free plan cap: ${FREE_PLAN_MAX} tokens). Upgrade to Premium for unlimited!`
+      : `+${actualCredits} credits added to your account!`;
+    res.json({ success: true, credits: actualCredits, newBalance, message: msg });
+  } catch (err) {
+    logger.error({ err }, "Error redeeming coupon");
+    res.status(500).json({ error: "Internal server error" });
   }
-  const newBalance = currentCredits + actualCredits;
-  await db.update(crakaUsers).set({ creditsEarned: newBalance }).where(eq(crakaUsers.sessionId, sessionId));
-  await db.insert(couponUses).values({ couponCode: code, sessionId, creditsAwarded: actualCredits });
-  await db.update(coupons).set({ usedCount: coupon.usedCount + 1 }).where(eq(coupons.code, code));
-  await logTokenTxn({ sessionId, type: "grant", amount: actualCredits, reason: `Coupon redeemed: ${code}`, balanceAfter: newBalance });
-  const msg = actualCredits < coupon.credits
-    ? `+${actualCredits} credits added (free plan cap: ${FREE_PLAN_MAX} tokens). Upgrade to Premium for unlimited!`
-    : `+${actualCredits} credits added to your account!`;
-  res.json({ success: true, credits: actualCredits, newBalance, message: msg });
 });
 
 export default router;
