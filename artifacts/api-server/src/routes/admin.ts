@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, osintApis, osintHistory, osintCache, crakaUsers, loginLogs, broadcasts, coupons, couponUses, scheduledBroadcasts } from "@workspace/db";
+import { db, osintApis, osintHistory, osintCache, crakaUsers, loginLogs, broadcasts, coupons, couponUses, scheduledBroadcasts, crakaReferrals } from "@workspace/db";
 import { eq, sql, desc, gt, and, lte } from "drizzle-orm";
 import { generateToken, adminAuthMiddleware, refreshTokenHandler } from "../lib/jwt";
 import { AdminLoginSchema, AdminCreateApiSchema, AdminGrantPremiumSchema, formatValidationError } from "../lib/validation";
@@ -398,6 +398,23 @@ router.post("/admin/unban-user", adminAuthMiddleware, async (req, res) => {
   if (!code) { res.status(400).json({ error: "referralCode required" }); return; }
   await db.update(crakaUsers).set({ isBanned: false, banReason: null }).where(eq(crakaUsers.referralCode, code));
   res.json({ success: true, message: `User ${code} unbanned.` });
+});
+
+/** DELETE /api/admin/delete-user */
+router.delete("/admin/delete-user/:referralCode", adminAuthMiddleware, async (req, res) => {
+  const code = String(req.params.referralCode || "").trim().toUpperCase();
+  if (!code) { res.status(400).json({ error: "referralCode required" }); return; }
+  const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  const { sessionId } = user;
+  // Delete all related data first, then the user
+  await db.delete(osintHistory).where(eq(osintHistory.sessionId, sessionId)).catch(() => {});
+  await db.delete(loginLogs).where(eq(loginLogs.sessionId, sessionId)).catch(() => {});
+  await db.delete(couponUses).where(eq(couponUses.sessionId, sessionId)).catch(() => {});
+  await db.delete(crakaReferrals).where(eq(crakaReferrals.referredSessionId, sessionId)).catch(() => {});
+  await db.delete(crakaReferrals).where(eq(crakaReferrals.referrerCode, code)).catch(() => {});
+  await db.delete(crakaUsers).where(eq(crakaUsers.referralCode, code));
+  res.json({ success: true, message: `User ${code} and all their data deleted permanently.` });
 });
 
 /** POST /api/admin/adjust-tokens */
