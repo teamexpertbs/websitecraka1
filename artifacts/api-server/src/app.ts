@@ -1,4 +1,4 @@
-import express, { type Express, type Request, type Response, type NextFunction } from "express";
+import express, { type Express, type Request, type Response, type NextFunction, type ErrorRequestHandler } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import path from "node:path";
@@ -69,5 +69,17 @@ if (process.env.NODE_ENV === "production") {
     );
   }
 }
+
+// Global error handler — catches all unhandled errors from async routes
+const globalErrorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+  const status = (err as any)?.status ?? (err as any)?.statusCode ?? 500;
+  const message = status < 500 ? err.message : "Internal server error";
+  if (status >= 500) {
+    const { logger: appLogger } = require("./lib/logger");
+    appLogger.error({ err }, "Unhandled route error");
+  }
+  if (!res.headersSent) res.status(status).json({ error: message });
+};
+app.use(globalErrorHandler);
 
 export default app;
