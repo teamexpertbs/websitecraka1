@@ -1,9 +1,13 @@
+import nodemailer from "nodemailer";
 import { logger } from "./logger";
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM_EMAIL = process.env.FROM_EMAIL || "onboarding@resend.dev";
+const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
+const SMTP_PORT = Number(process.env.SMTP_PORT || "587");
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS?.replace(/\s/g, ""); // strip ALL spaces from App Password
+const FROM_EMAIL = process.env.FROM_EMAIL || (SMTP_USER ?? "noreply@example.com");
 
-export const isEmailConfigured = () => !!RESEND_API_KEY;
+export const isEmailConfigured = () => !!(SMTP_HOST && SMTP_USER && SMTP_PASS);
 
 function getAppUrl(): string {
   const replitDomain = process.env.REPLIT_DEV_DOMAIN;
@@ -11,40 +15,51 @@ function getAppUrl(): string {
   return process.env.APP_URL || "https://crakadevelopers.online";
 }
 
-// Verify email config on startup
-export function verifySMTPOnStartup(): void {
-  if (!RESEND_API_KEY) {
-    logger.warn("RESEND_API_KEY not set — emails disabled");
-  } else {
-    logger.info({ from: FROM_EMAIL }, "Resend email configured OK");
-  }
+function makeTransporter() {
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+    connectionTimeout: 15000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
+    tls: { rejectUnauthorized: false },
+  });
 }
 
-// Send email via Resend HTTP API
+export function verifySMTPOnStartup(): void {
+  if (!isEmailConfigured()) {
+    logger.warn("SMTP not configured — emails disabled");
+    return;
+  }
+  const t = makeTransporter();
+  (t as any).verify((err: Error | null) => {
+    if (err) logger.error({ err: err.message }, "SMTP verify FAILED");
+    else logger.info({ host: SMTP_HOST, port: SMTP_PORT, user: SMTP_USER }, "SMTP connected OK");
+  });
+}
+
 async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
-  if (!RESEND_API_KEY) {
-    logger.warn("No RESEND_API_KEY — email skipped");
+  if (!isEmailConfigured()) {
+    logger.warn("SMTP not configured — email skipped");
     return false;
   }
+  const transporter = makeTransporter();
   try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ from: `CraKa OSINT <${FROM_EMAIL}>`, to, subject, html }),
+    const info = await transporter.sendMail({
+      from: `CraKa OSINT <${FROM_EMAIL}>`,
+      to,
+      subject,
+      html,
     });
-    const data = await res.json() as any;
-    if (!res.ok) {
-      logger.error({ status: res.status, error: data, to, subject }, "Resend API error");
-      return false;
-    }
-    logger.info({ id: data.id, to, subject }, "Email delivered via Resend");
+    logger.info({ messageId: info.messageId, to }, "Email delivered");
     return true;
   } catch (err: any) {
-    logger.error({ err: err.message, to, subject }, "Resend fetch failed");
+    logger.error({ err: err.message, code: err.code, to, subject }, "Email send FAILED");
     return false;
+  } finally {
+    transporter.close();
   }
 }
 
