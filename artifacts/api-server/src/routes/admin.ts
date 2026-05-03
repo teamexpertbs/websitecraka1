@@ -88,8 +88,7 @@ router.post("/admin/login", async (req, res) => {
     }
     const valid = verifyTotp(secret, totpToken);
     if (!valid) {
-      recordFailure(ip);
-      res.status(401).json({ success: false, message: "Invalid 2FA code" });
+      res.status(401).json({ success: false, message: "Invalid 2FA code. Make sure your device time is synced and try again." });
       return;
     }
   }
