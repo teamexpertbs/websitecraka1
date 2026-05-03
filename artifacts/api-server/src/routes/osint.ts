@@ -191,6 +191,12 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
     return;
   }
 
+  // ── Banned User Check ────────────────────────────────────────────────────
+  if (userRaw[0].isBanned) {
+    res.status(403).json({ error: "Your account has been suspended. Contact support." });
+    return;
+  }
+
   // ── Premium Expiry Check ──────────────────────────────────────────────────
   // If premium has expired, immediately reset to free plan and cap tokens
   const FREE_PLAN_TOKENS = 10;
