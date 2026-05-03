@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
   User, Star, Gift, Coins, Bookmark, Tag, Trash2,
-  Crown, Zap, ExternalLink, Ticket, CheckCircle2
+  Crown, Zap, ExternalLink, Ticket, CheckCircle2, Users
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -40,6 +40,35 @@ function useDeleteBookmark() {
   });
 }
 
+function useUserMe(sessionId: string | undefined) {
+  return useQuery({
+    queryKey: ["userMe", sessionId],
+    queryFn: async () => {
+      if (!sessionId) return null;
+      const res = await customFetch(`/api/user/me?sessionId=${sessionId}`);
+      return res as { referredBy: string | null; creditsEarned: number; referralCode: string };
+    },
+    enabled: !!sessionId,
+    staleTime: 30_000,
+  });
+}
+
+function useApplyReferral() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sessionId, referralCode }: { sessionId: string; referralCode: string }) => {
+      return customFetch("/api/user/apply-referral", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, referralCode }),
+      }) as any;
+    },
+    onSuccess: (_data, { sessionId }) => {
+      qc.invalidateQueries({ queryKey: ["userMe", sessionId] });
+      qc.invalidateQueries({ queryKey: ["currentUser"] });
+    },
+  });
+}
+
 function useRedeemCoupon() {
   const qc = useQueryClient();
   return useMutation({
@@ -62,13 +91,32 @@ export default function Profile() {
   const { toast } = useToast();
   const sessionId = signedInUser?.sessionId || getOrCreateSession();
   const [couponCode, setCouponCode] = useState("");
+  const [referralInput, setReferralInput] = useState("");
 
   const { data: bookmarkList = [], isLoading: bookmarksLoading } = useBookmarks(sessionId);
+  const { data: userMe } = useUserMe(sessionId);
   const deleteBookmark = useDeleteBookmark();
   const redeemCoupon = useRedeemCoupon();
+  const applyReferral = useApplyReferral();
 
   const user = signedInUser;
   const isLoggedIn = !!(signedInUser || token || sessionId);
+
+  const handleApplyReferral = () => {
+    const code = referralInput.trim().toUpperCase();
+    if (!code) return;
+    if (!sessionId) { toast({ title: "Error", description: "Session not found", variant: "destructive" }); return; }
+    applyReferral.mutate({ sessionId, referralCode: code }, {
+      onSuccess: (data) => {
+        toast({ title: "Referral Applied!", description: data.message || "+5 tokens mile!" });
+        setReferralInput("");
+      },
+      onError: (err: any) => {
+        const msg = err?.data?.error || err?.message || "Failed to apply referral code";
+        toast({ title: "Error", description: msg, variant: "destructive" });
+      },
+    });
+  };
 
   const handleRedeemCoupon = () => {
     const code = couponCode.trim().toUpperCase();
@@ -199,6 +247,42 @@ export default function Profile() {
             <p className="text-xs text-muted-foreground mt-2">Get coupon codes from admin or special promotions.</p>
           </CardContent>
         </Card>
+
+        {/* Apply Friend's Referral Code — only show if not referred yet */}
+        {!userMe?.referredBy && (
+          <Card className="border-green-500/20 bg-card/80">
+            <CardHeader className="pb-3 border-b border-border">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="w-4 h-4 text-green-400" />
+                Friend ka Referral Code Apply Karo
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="flex gap-2">
+                <Input
+                  value={referralInput}
+                  onChange={e => setReferralInput(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === "Enter" && handleApplyReferral()}
+                  placeholder="e.g. CRAKA-XXXXXX"
+                  className="font-mono tracking-wider bg-muted/50 border-border"
+                  disabled={applyReferral.isPending}
+                />
+                <Button
+                  onClick={handleApplyReferral}
+                  disabled={!referralInput.trim() || applyReferral.isPending}
+                  className="shrink-0 bg-green-600 text-white hover:bg-green-500"
+                >
+                  {applyReferral.isPending ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <><CheckCircle2 className="w-4 h-4 mr-1" /> Apply</>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">Dost ka referral code daalo — aapko <span className="text-green-400 font-semibold">+5 tokens</span> milenge!</p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Bookmarks */}
         <Card className="border-border bg-card/80">
