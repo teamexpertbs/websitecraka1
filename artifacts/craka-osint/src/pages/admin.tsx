@@ -440,6 +440,22 @@ function AdminDashboard() {
     } catch { toast({ title: "Error", description: "Network error", variant: "destructive" }); }
   };
 
+  const handleDeleteUser = async (referralCode: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/delete-user/${referralCode}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "User Deleted", description: data.message });
+        refreshUsers();
+      } else {
+        toast({ title: "Error", description: data.error, variant: "destructive" });
+      }
+    } catch { toast({ title: "Error", description: "Network error", variant: "destructive" }); }
+  };
+
   const handleUnbanUser = async (referralCode: string) => {
     try {
       const res = await fetch(`${API_BASE}/api/admin/unban-user`, {
@@ -797,6 +813,33 @@ function AdminDashboard() {
                               </DialogContent>
                             </Dialog>
                           )}
+                          {/* Delete user permanently */}
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-7 text-xs px-2 text-red-600 hover:bg-red-600/10" title="Delete user permanently">
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="bg-card border-border">
+                              <DialogHeader>
+                                <DialogTitle className="text-destructive flex items-center gap-2">
+                                  <Trash2 className="w-4 h-4" />Delete User — {user.referralCode}
+                                </DialogTitle>
+                              </DialogHeader>
+                              <div className="py-2 space-y-2">
+                                <p className="text-sm text-muted-foreground">This will <span className="text-destructive font-semibold">permanently delete</span> the user and all their data including search history, bookmarks, token transactions, and referrals.</p>
+                                <p className="text-xs font-mono text-yellow-400 bg-yellow-400/10 border border-yellow-400/30 rounded px-3 py-2">This action cannot be undone.</p>
+                              </div>
+                              <DialogFooter>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => handleDeleteUser(user.referralCode)}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />Delete Permanently
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
                         </div>
                       </TableCell>
                     </TableRow>
