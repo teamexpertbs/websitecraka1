@@ -14,7 +14,7 @@ export const isEmailConfigured = () => !!(RESEND_API_KEY || (SMTP_HOST && SMTP_U
 
 function getAppUrl(): string {
   const d = process.env.REPLIT_DEV_DOMAIN;
-  return d ? `https://24042-${d}` : APP_URL;
+  return d ? `https://${d}` : APP_URL;
 }
 
 // --- Resend (HTTP, works on all cloud hosts) ---
