@@ -7,7 +7,7 @@ const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
 const SMTP_PORT = Number(process.env.SMTP_PORT || "587");
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS?.replace(/\s/g, "");
-const FROM_EMAIL = process.env.FROM_EMAIL || SMTP_USER || "noreply@example.com";
+const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@crakadevelopers.online";
 const APP_URL = process.env.APP_URL || "https://crakadevelopers.online";
 
 export const isEmailConfigured = () => !!(RESEND_API_KEY || (SMTP_HOST && SMTP_USER && SMTP_PASS));
