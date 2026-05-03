@@ -5,7 +5,7 @@ const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = Number(process.env.SMTP_PORT || "587");
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
-const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@crakadevelopers.online";
+const FROM_EMAIL = process.env.FROM_EMAIL || "thekingofcbr21@gmail.com";
 
 export const isEmailConfigured = () => !!(SMTP_HOST && SMTP_USER && SMTP_PASS);
 
@@ -15,23 +15,18 @@ function getAppUrl(): string {
   return process.env.APP_URL || "https://crakadevelopers.online";
 }
 
-// Singleton pooled transporter — reuses SMTP connections instead of reconnecting every time
-let _transporter: nodemailer.Transporter | null = null;
-
+// Always create a fresh transporter (no pooling — avoids stale connection issues on Render)
 function getTransporter(): nodemailer.Transporter | null {
   if (!isEmailConfigured()) return null;
-  if (!_transporter) {
-    _transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_PORT === 465,
-      pool: true,
-      maxConnections: 5,
-      maxMessages: 100,
-      auth: { user: SMTP_USER, pass: SMTP_PASS?.trim() }, // trim spaces from App Password
-    });
-  }
-  return _transporter;
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS?.replace(/\s/g, "") }, // remove ALL spaces from App Password
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+  });
 }
 
 // Verify SMTP on startup so errors are visible in logs
@@ -51,13 +46,21 @@ export function verifySMTPOnStartup(): void {
   });
 }
 
-// Fire-and-forget wrapper — API responds instantly, email sends in background
-function sendAsync(mailOptions: nodemailer.SendMailOptions): void {
+// Awaitable send — returns true on success, false on failure (logs the error)
+async function sendEmail(mailOptions: nodemailer.SendMailOptions): Promise<boolean> {
   const transporter = getTransporter();
-  if (!transporter) return;
-  transporter.sendMail(mailOptions)
-    .then((info) => logger.info({ messageId: info.messageId, to: mailOptions.to }, "Email delivered"))
-    .catch((err) => logger.error({ err: err.message, to: mailOptions.to, subject: mailOptions.subject }, "Email send FAILED"));
+  if (!transporter) {
+    logger.warn("No transporter — email skipped");
+    return false;
+  }
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    logger.info({ messageId: info.messageId, to: mailOptions.to }, "Email delivered");
+    return true;
+  } catch (err: any) {
+    logger.error({ err: err.message, code: err.code, to: mailOptions.to, subject: mailOptions.subject }, "Email send FAILED");
+    return false;
+  }
 }
 
 export async function sendMagicLink(email: string, token: string, name?: string): Promise<boolean> {
@@ -66,7 +69,7 @@ export async function sendMagicLink(email: string, token: string, name?: string)
     return false;
   }
   const link = `${getAppUrl()}/auth/magic?token=${token}`;
-  sendAsync({
+  return sendEmail({
     from: `CraKa OSINT <${FROM_EMAIL}>`,
     to: email,
     subject: "🔑 Your CraKa OSINT Login Link",
@@ -84,14 +87,12 @@ export async function sendMagicLink(email: string, token: string, name?: string)
       </div>
     `,
   });
-  logger.info({ email }, "Magic link queued");
-  return true;
 }
 
 export async function sendVerificationEmail(email: string, token: string, name?: string): Promise<boolean> {
   if (!isEmailConfigured()) return false;
   const link = `${getAppUrl()}/verify-email?token=${token}`;
-  sendAsync({
+  return sendEmail({
     from: `CraKa OSINT <${FROM_EMAIL}>`,
     to: email,
     subject: "✅ Verify your CraKa OSINT email",
@@ -109,14 +110,12 @@ export async function sendVerificationEmail(email: string, token: string, name?:
       </div>
     `,
   });
-  logger.info({ email }, "Verification email queued");
-  return true;
 }
 
 export async function sendPasswordResetEmail(email: string, token: string, name?: string): Promise<boolean> {
   if (!isEmailConfigured()) return false;
   const link = `${getAppUrl()}/reset-password?token=${token}`;
-  sendAsync({
+  return sendEmail({
     from: `CraKa OSINT <${FROM_EMAIL}>`,
     to: email,
     subject: "🔐 Reset your CraKa OSINT password",
@@ -134,6 +133,4 @@ export async function sendPasswordResetEmail(email: string, token: string, name?
       </div>
     `,
   });
-  logger.info({ email }, "Password reset email queued");
-  return true;
 }

@@ -45,21 +45,25 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
       .where(eq(crakaUsers.id, user.id));
 
     const { sendPasswordResetEmail } = await import("../lib/email");
-    let emailSent = false;
     let devToken: string | null = null;
 
-    if (isEmailConfigured()) {
-      emailSent = await sendPasswordResetEmail(emailLower, token, user.displayName ?? undefined);
-    } else {
+    if (!isEmailConfigured()) {
       devToken = token;
+      res.json({ success: true, message: "Email service not configured.", dev_token: devToken });
+      return;
+    }
+
+    const emailSent = await sendPasswordResetEmail(emailLower, token, user.displayName ?? undefined);
+
+    if (!emailSent) {
+      logger.error({ email: emailLower }, "Password reset email failed to send on production");
+      res.status(500).json({ error: "Email delivery failed. Please try again later." });
+      return;
     }
 
     res.json({
       success: true,
-      message: emailSent
-        ? "Password reset link sent! Check your inbox (expires in 15 minutes)."
-        : "Email service not configured.",
-      ...(devToken ? { dev_token: devToken } : {}),
+      message: "Password reset link sent! Check your inbox (expires in 15 minutes).",
     });
   } catch (err) {
     logger.error({ err }, "Error in /auth/forgot-password");
