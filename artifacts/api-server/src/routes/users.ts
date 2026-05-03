@@ -29,6 +29,12 @@ router.post("/user/init", async (req, res): Promise<void> => {
 
     let user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
 
+    // Block banned users from doing anything
+    if (user?.isBanned) {
+      res.status(403).json({ error: "Your account has been suspended. Contact support." });
+      return;
+    }
+
     if (!user) {
       let referralCode = generateReferralCode();
       let attempts = 0;
