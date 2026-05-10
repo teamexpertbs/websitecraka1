@@ -6,6 +6,7 @@ import { PremiumBanner } from "@/components/premium-banner";
 import { ThemeProvider } from "@/lib/theme";
 import { I18nProvider } from "@/lib/i18n";
 import { useUserStore } from "@/lib/user-store";
+import { useEffect, useState } from "react";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Logs from "@/pages/logs";
@@ -25,11 +26,42 @@ import Notifications from "@/pages/notifications";
 
 const queryClient = new QueryClient();
 
+const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const PUBLIC_ROUTES = ["/login", "/forgot-password", "/auth/magic", "/verify-email", "/reset-password"];
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { signedInUser } = useUserStore();
+  const { signedInUser, userToken, logout, _hasHydrated } = useUserStore();
   const [location] = useLocation();
+  const [validated, setValidated] = useState(false);
+
+  useEffect(() => {
+    if (!_hasHydrated) return;
+
+    if (!userToken || !signedInUser) {
+      setValidated(true);
+      return;
+    }
+
+    // Validate token against server — catches deleted accounts
+    fetch(`${API_BASE}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${userToken}` },
+    })
+      .then((res) => {
+        if (res.status === 401 || res.status === 404) {
+          logout();
+        }
+        setValidated(true);
+      })
+      .catch(() => {
+        // Network error — keep user logged in (offline-friendly)
+        setValidated(true);
+      });
+  }, [_hasHydrated]);
+
+  // Wait until Zustand has rehydrated from localStorage
+  if (!_hasHydrated || !validated) {
+    return null;
+  }
 
   if (!signedInUser && !PUBLIC_ROUTES.includes(location)) {
     return <Redirect to="/login" />;
