@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
   User, Star, Gift, Coins, Bookmark, Tag, Trash2,
-  Crown, Zap, ExternalLink, Ticket, CheckCircle2, Users
+  Crown, Zap, ExternalLink, Ticket, CheckCircle2, Users,
+  AlertTriangle, X
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -84,20 +85,35 @@ function useRedeemCoupon() {
   });
 }
 
+function useDeleteAccount(token: string | null) {
+  return useMutation({
+    mutationFn: async () => {
+      if (!token) throw new Error("Not authenticated");
+      return customFetch("/api/user/account", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      }) as any;
+    },
+  });
+}
+
 export default function Profile() {
-  const { signedInUser } = useUserStore();
-  const { token } = useAuthStore();
+  const { signedInUser, logout } = useUserStore();
+  const { token, setToken } = useAuthStore();
   const qc = useQueryClient();
   const { toast } = useToast();
   const sessionId = signedInUser?.sessionId || getOrCreateSession();
   const [couponCode, setCouponCode] = useState("");
   const [referralInput, setReferralInput] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const { data: bookmarkList = [], isLoading: bookmarksLoading } = useBookmarks(sessionId);
   const { data: userMe } = useUserMe(sessionId);
   const deleteBookmark = useDeleteBookmark();
   const redeemCoupon = useRedeemCoupon();
   const applyReferral = useApplyReferral();
+  const deleteAccount = useDeleteAccount(token);
 
   const user = signedInUser;
   const isLoggedIn = !!(signedInUser || token || sessionId);
@@ -140,6 +156,24 @@ export default function Profile() {
     deleteBookmark.mutate({ id, sessionId }, {
       onSuccess: () => toast({ title: "Bookmark removed" }),
       onError: () => toast({ title: "Failed to remove bookmark", variant: "destructive" }),
+    });
+  };
+
+  const handleDeleteAccount = () => {
+    if (deleteConfirmText !== "DELETE") return;
+    deleteAccount.mutate(undefined, {
+      onSuccess: () => {
+        toast({ title: "Account Deleted", description: "Aapka account permanently delete ho gaya." });
+        logout();
+        setToken(null);
+        qc.clear();
+        setShowDeleteConfirm(false);
+        window.location.href = "/";
+      },
+      onError: (err: any) => {
+        const msg = err?.data?.error || err?.message || "Account delete nahi hua, dobara try karein.";
+        toast({ title: "Error", description: msg, variant: "destructive" });
+      },
     });
   };
 
@@ -332,7 +366,7 @@ export default function Profile() {
         </Card>
 
         {/* Quick Links */}
-        <div className="grid grid-cols-2 gap-3 pb-4">
+        <div className="grid grid-cols-2 gap-3">
           <Link href="/refer">
             <Card className="border-green-500/20 bg-green-500/5 hover:bg-green-500/10 cursor-pointer transition-colors">
               <CardContent className="p-4 flex items-center gap-3">
@@ -356,6 +390,97 @@ export default function Profile() {
             </Card>
           </Link>
         </div>
+
+        {/* Danger Zone — Delete Account */}
+        {signedInUser && (
+          <Card className="border-red-500/30 bg-red-500/5">
+            <CardHeader className="pb-3 border-b border-red-500/20">
+              <CardTitle className="text-base flex items-center gap-2 text-red-400">
+                <AlertTriangle className="w-4 h-4" />
+                Danger Zone
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Delete My Account</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Aapka account aur saara data permanently delete ho jayega. Yeh action undo nahi ho sakta.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setShowDeleteConfirm(true); setDeleteConfirmText(""); }}
+                  className="shrink-0 border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  Delete
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <Card className="w-full max-w-md border-red-500/40 bg-card shadow-2xl">
+              <CardHeader className="pb-3 border-b border-red-500/20">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2 text-red-400">
+                    <AlertTriangle className="w-4 h-4" />
+                    Account Delete Karna Chahte Ho?
+                  </CardTitle>
+                  <button onClick={() => setShowDeleteConfirm(false)} className="text-muted-foreground hover:text-foreground">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 space-y-4">
+                <div className="bg-red-500/10 border border-red-500/20 rounded-md p-3 text-xs text-red-300 space-y-1">
+                  <p>• Aapka poora account delete ho jayega</p>
+                  <p>• Saare credits, bookmarks aur history hamesha ke liye khatam</p>
+                  <p>• Same email se dobara register karne par <strong>0 free credits</strong> milenge</p>
+                  <p>• Yeh kaam undo nahi ho sakta</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Confirm karne ke liye neeche <span className="font-mono font-bold text-foreground">DELETE</span> type karein:
+                  </p>
+                  <Input
+                    value={deleteConfirmText}
+                    onChange={e => setDeleteConfirmText(e.target.value)}
+                    placeholder="DELETE"
+                    className="font-mono bg-muted/50 border-red-500/30 focus:border-red-500/60"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    className="flex-1 border-border"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    disabled={deleteAccount.isPending}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                    onClick={handleDeleteAccount}
+                    disabled={deleteConfirmText !== "DELETE" || deleteAccount.isPending}
+                  >
+                    {deleteAccount.isPending ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <><Trash2 className="w-4 h-4 mr-1.5" /> Permanently Delete</>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </Layout>
   );
