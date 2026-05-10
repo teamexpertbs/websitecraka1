@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { OAuth2Client } from "google-auth-library";
 import jwt from "jsonwebtoken";
-import { db, crakaUsers, loginLogs } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, crakaUsers, loginLogs, deletedAccounts } from "@workspace/db";
+import { eq, or } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { logTokenTxn } from "../lib/tokenLog";
 
@@ -122,6 +122,19 @@ router.post("/auth/google", async (req, res): Promise<void> => {
         "sess_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
       const newReferralCode = generateReferralCode();
 
+      // Check if this email/googleId previously had an account (abuse prevention)
+      const wasDeleted = await db
+        .select()
+        .from(deletedAccounts)
+        .where(
+          or(
+            eq(deletedAccounts.googleId, googleId),
+            ...(email ? [eq(deletedAccounts.email, email)] : [])
+          )
+        )
+        .limit(1)
+        .then((r) => r[0] ?? null);
+
       // Check if referral code is valid
       let referredByUser = null;
       if (referralCode) {
@@ -133,7 +146,8 @@ router.post("/auth/google", async (req, res): Promise<void> => {
           .then((r) => r[0] ?? null);
       }
 
-      const bonusCredits = referredByUser ? 10 : 5; // Extra 5 for using referral
+      // No welcome bonus if this identity was seen before (re-registration abuse)
+      const bonusCredits = wasDeleted ? 0 : referredByUser ? 10 : 5;
       const [created] = await db
         .insert(crakaUsers)
         .values({
@@ -151,13 +165,15 @@ router.post("/auth/google", async (req, res): Promise<void> => {
         .returning();
       user = created;
 
-      await logTokenTxn({
-        sessionId: user.sessionId,
-        type: "init",
-        amount: bonusCredits,
-        reason: referredByUser ? "Welcome bonus + referral bonus (Google sign-in)" : "Welcome bonus (Google sign-in)",
-        balanceAfter: bonusCredits,
-      });
+      if (bonusCredits > 0) {
+        await logTokenTxn({
+          sessionId: user.sessionId,
+          type: "init",
+          amount: bonusCredits,
+          reason: referredByUser ? "Welcome bonus + referral bonus (Google sign-in)" : "Welcome bonus (Google sign-in)",
+          balanceAfter: bonusCredits,
+        });
+      }
 
       // Reward the referrer
       if (referredByUser) {
