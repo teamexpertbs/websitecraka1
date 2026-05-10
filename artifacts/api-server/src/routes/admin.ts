@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, osintApis, osintHistory, osintCache, crakaUsers, loginLogs, broadcasts, coupons, couponUses, scheduledBroadcasts, crakaReferrals } from "@workspace/db";
+import { db, osintApis, osintHistory, osintCache, crakaUsers, loginLogs, broadcasts, coupons, couponUses, scheduledBroadcasts, crakaReferrals, deletedAccounts } from "@workspace/db";
 import { eq, sql, desc, gt, and, lte } from "drizzle-orm";
 import { generateToken, adminAuthMiddleware, refreshTokenHandler } from "../lib/jwt";
 import { AdminLoginSchema, AdminCreateApiSchema, AdminGrantPremiumSchema, formatValidationError } from "../lib/validation";
@@ -406,6 +406,11 @@ router.delete("/admin/delete-user/:referralCode", adminAuthMiddleware, async (re
   const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   const { sessionId } = user;
+  // Record in deleted_accounts for abuse prevention before hard-deleting
+  await db.insert(deletedAccounts).values({
+    email: user.email ?? null,
+    googleId: user.googleId ?? null,
+  }).catch(() => {});
   // Delete all related data first, then the user
   await db.delete(osintHistory).where(eq(osintHistory.sessionId, sessionId)).catch(() => {});
   await db.delete(loginLogs).where(eq(loginLogs.sessionId, sessionId)).catch(() => {});
