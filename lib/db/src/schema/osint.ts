@@ -169,6 +169,15 @@ export const couponUses = pgTable("coupon_uses", {
 
 export type CouponUse = typeof couponUses.$inferSelect;
 
+export const deletedAccounts = pgTable("deleted_accounts", {
+  id: serial("id").primaryKey(),
+  email: text("email"),
+  googleId: text("google_id"),
+  deletedAt: timestamp("deleted_at").defaultNow().notNull(),
+});
+
+export type DeletedAccount = typeof deletedAccounts.$inferSelect;
+
 export const scheduledBroadcasts = pgTable("scheduled_broadcasts", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
