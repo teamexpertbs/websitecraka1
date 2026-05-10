@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { crakaUsers, crakaReferrals, osintTokenTransactions, bookmarks, coupons, couponUses } from "@workspace/db";
+import { crakaUsers, crakaReferrals, osintTokenTransactions, bookmarks, coupons, couponUses, loginLogs, osintHistory, deletedAccounts } from "@workspace/db";
 import { eq, sql, desc, and } from "drizzle-orm";
+import { verifyUserToken } from "./auth";
 import { UserInitSchema, UserMeSchema, formatValidationError } from "../lib/validation";
 import { logger } from "../lib/logger";
 import { logTokenTxn } from "../lib/tokenLog";
@@ -244,6 +245,45 @@ router.delete("/user/bookmarks/:id", async (req, res): Promise<void> => {
     res.json({ success: true });
   } catch (err) {
     logger.error({ err }, "Error deleting bookmark");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/** DELETE /api/user/account — self-delete (requires Bearer token) */
+router.delete("/user/account", async (req, res): Promise<void> => {
+  try {
+    const auth = req.headers["authorization"];
+    if (!auth?.startsWith("Bearer ")) {
+      res.status(401).json({ error: "Authorization required" });
+      return;
+    }
+    const payload = verifyUserToken(auth.slice(7));
+    if (!payload) {
+      res.status(401).json({ error: "Invalid or expired token" });
+      return;
+    }
+    const { sessionId } = payload;
+    const user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    // Record email/googleId in deleted_accounts to prevent re-registration credit abuse
+    await db.insert(deletedAccounts).values({
+      email: user.email ?? null,
+      googleId: user.googleId ?? null,
+    }).catch(() => {});
+    // Delete all user data
+    await db.delete(bookmarks).where(eq(bookmarks.sessionId, sessionId)).catch(() => {});
+    await db.delete(osintHistory).where(eq(osintHistory.sessionId, sessionId)).catch(() => {});
+    await db.delete(loginLogs).where(eq(loginLogs.sessionId, sessionId)).catch(() => {});
+    await db.delete(couponUses).where(eq(couponUses.sessionId, sessionId)).catch(() => {});
+    await db.delete(crakaReferrals).where(eq(crakaReferrals.referredSessionId, sessionId)).catch(() => {});
+    await db.delete(crakaReferrals).where(eq(crakaReferrals.referrerCode, user.referralCode)).catch(() => {});
+    await db.delete(crakaUsers).where(eq(crakaUsers.sessionId, sessionId));
+    res.json({ success: true, message: "Account deleted successfully." });
+  } catch (err) {
+    logger.error({ err }, "Error deleting user account");
     res.status(500).json({ error: "Internal server error" });
   }
 });
