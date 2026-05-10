@@ -1,8 +1,8 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { db, crakaUsers, loginLogs } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, crakaUsers, loginLogs, deletedAccounts } from "@workspace/db";
+import { eq, or } from "drizzle-orm";
 import { sendMagicLink, sendVerificationEmail, isEmailConfigured } from "../lib/email";
 import { generateUserToken } from "./auth";
 import { logger } from "../lib/logger";
@@ -60,8 +60,16 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     const verifyToken = crypto.randomBytes(32).toString("hex");
     const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
+    // Check if this email previously had an account (re-registration abuse prevention)
+    const wasDeleted = await db
+      .select()
+      .from(deletedAccounts)
+      .where(eq(deletedAccounts.email, emailLower))
+      .limit(1)
+      .then((r) => r[0] ?? null);
+
     // Referral bonus
-    let creditsEarned = 5;
+    let creditsEarned = wasDeleted ? 0 : 5;
     let referredBy: string | null = null;
     if (refCode) {
       const referrer = await db
@@ -72,7 +80,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
         .then((r) => r[0] ?? null);
       if (referrer) {
         referredBy = refCode.toUpperCase();
-        creditsEarned = 10;
+        creditsEarned = wasDeleted ? 0 : 10;
         await db
           .update(crakaUsers)
           .set({ creditsEarned: referrer.creditsEarned + 5, totalReferrals: referrer.totalReferrals + 1 })
