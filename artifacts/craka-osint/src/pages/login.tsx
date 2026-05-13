@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
-import { Terminal, Mail, Lock, Eye, EyeOff, UserPlus, LogIn, Loader2, CheckCircle, AlertCircle, Gift } from "lucide-react";
+import { Terminal, Mail, Lock, Eye, EyeOff, UserPlus, LogIn, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { useUserStore } from "@/lib/user-store";
 import { getOrCreateSession } from "@/lib/session";
@@ -17,7 +17,6 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [referralCode, setReferralCode] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
@@ -68,7 +67,6 @@ export default function Login() {
           password,
           name: name.trim(),
           sessionId,
-          referralCode: referralCode.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -77,7 +75,6 @@ export default function Login() {
       setEmail("");
       setPassword("");
       setName("");
-      setReferralCode("");
     } catch (err: any) {
       setError(err?.message || "Sign-up failed. Please try again.");
     } finally {
@@ -123,20 +120,9 @@ export default function Login() {
               <p className="text-xs text-muted-foreground mt-0.5">{tab === "signin" ? "Sign in with Google or email" : "Get 5 free tokens on signup"}</p>
             </div>
 
-            {/* Referral (signup only) */}
-            {tab === "signup" && (
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block font-mono">Referral Code <span className="text-muted-foreground/50">(optional)</span></label>
-                <div className="relative">
-                  <Gift className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary/50" />
-                  <input type="text" value={referralCode} onChange={(e) => setReferralCode(e.target.value.toUpperCase())} placeholder="ENTER CODE" maxLength={10} className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-background border border-border text-sm font-mono tracking-widest text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" />
-                </div>
-              </div>
-            )}
-
             {/* Google button */}
             <div className="space-y-2">
-              <GoogleSignInButton onSuccess={() => setLocation("/")} size="large" referralCode={tab === "signup" ? referralCode : undefined} />
+              <GoogleSignInButton onSuccess={() => setLocation("/")} size="large" />
               <p className="text-[11px] text-center text-muted-foreground/70">
                 Google account se account banane ke liye upar <span className="text-foreground font-medium">Continue with Google</span> par click karein.
               </p>
