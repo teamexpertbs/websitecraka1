@@ -1,17 +1,58 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" translate="no">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5, user-scalable=yes" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+    <!-- Prevent browser auto-translate from breaking inputs and UI -->
+    <meta name="google" content="notranslate" />
+    <meta http-equiv="Content-Language" content="en" />
+
     <title>CraKa OSINT Portal</title>
+    <meta name="description" content="CraKa OSINT Portal — Advanced open-source intelligence lookup platform with 19+ tools, premium features, and real-time analytics." />
+
+    <!-- Favicon & App Icons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" sizes="48x48" href="/android/launchericon-48x48.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/android/launchericon-96x96.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/android/launchericon-192x192.png" />
+
+    <!-- Apple Touch Icons (iOS Add to Home Screen) -->
+    <link rel="apple-touch-icon" href="/ios/180.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/ios/152.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/ios/167.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/ios/180.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/ios/192.png" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#0a0e17" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CraKa OSINT" />
+    <meta name="application-name" content="CraKa OSINT" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="msapplication-TileColor" content="#0a0e17" />
+    <meta name="msapplication-TileImage" content="/android/launchericon-144x144.png" />
+
+    <!-- Open Graph / Social -->
+    <meta property="og:title" content="CraKa OSINT Portal" />
+    <meta property="og:description" content="Advanced OSINT lookup portal with 19+ modules, premium tiers, and real-time analytics." />
+    <meta property="og:image" content="/opengraph.jpg" />
+    <meta property="og:type" content="website" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
     <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
-  <body>
+  <body class="notranslate">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
