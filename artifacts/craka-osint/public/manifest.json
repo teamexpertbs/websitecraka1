@@ -1,33 +1,30 @@
 {
-  "id": "https://websitecraka1-api-server.vercel.app/",
+  "id": "/",
   "name": "CraKa OSINT Portal",
   "short_name": "CraKa",
   "description": "OSINT portal for the CraKa platform with admin controls, analytics, and reporting.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["tabbed", "window-controls-overlay", "standalone", "minimal-ui", "browser"],
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#0a0e17",
+  "theme_color": "#0a0e17",
   "orientation": "portrait-primary",
   "categories": ["utilities", "productivity"],
   "lang": "en",
   "dir": "ltr",
-  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
   "prefer_related_applications": false,
-  "related_applications": [
-    {
-      "platform": "webapp",
-      "url": "https://websitecraka1-api-server.vercel.app/"
-    }
-  ],
   "icons": [
     { "src": "/android/launchericon-48x48.png", "sizes": "48x48", "type": "image/png" },
     { "src": "/android/launchericon-72x72.png", "sizes": "72x72", "type": "image/png" },
     { "src": "/android/launchericon-96x96.png", "sizes": "96x96", "type": "image/png" },
     { "src": "/android/launchericon-144x144.png", "sizes": "144x144", "type": "image/png" },
-    { "src": "/android/launchericon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable any" },
-    { "src": "/android/launchericon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable any" }
+    { "src": "/android/launchericon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/android/launchericon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/ios/152.png", "sizes": "152x152", "type": "image/png" },
+    { "src": "/ios/167.png", "sizes": "167x167", "type": "image/png" },
+    { "src": "/ios/180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/ios/192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/ios/512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "screenshots": [
     {
@@ -72,61 +69,5 @@
       "text": "text",
       "url": "url"
     }
-  },
-  "protocol_handlers": [
-    {
-      "protocol": "web+craka",
-      "url": "/?query=%s"
-    }
-  ],
-  "file_handlers": [
-    {
-      "action": "/",
-      "accept": {
-        "text/plain": [".txt"],
-        "application/json": [".json"],
-        "text/csv": [".csv"]
-      },
-      "icons": [{ "src": "/android/launchericon-96x96.png", "sizes": "96x96", "type": "image/png" }],
-      "launch_type": "single-client"
-    }
-  ],
-  "widgets": [
-    {
-      "name": "CraKa Quick Search",
-      "short_name": "CraKa",
-      "description": "Quick OSINT lookup from your home screen",
-      "tag": "craka-search-widget",
-      "ms_ac_template": "/widgets/template.json",
-      "data": "/widgets/data.json",
-      "type": "application/json",
-      "screenshots": [
-        {
-          "src": "/screenshots/narrow.png",
-          "sizes": "540x960",
-          "label": "CraKa widget preview"
-        }
-      ],
-      "icons": [
-        {
-          "src": "/android/launchericon-144x144.png",
-          "sizes": "144x144",
-          "type": "image/png"
-        }
-      ],
-      "auth": false,
-      "update": 86400
-    }
-  ],
-  "scope_extensions": [
-    {
-      "origin": "https://websitecraka1-api-server.vercel.app"
-    }
-  ],
-  "edge_side_panel": {
-    "preferred_width": 400
-  },
-  "note_taking": {
-    "new_note_url": "/?action=note"
   }
 }
