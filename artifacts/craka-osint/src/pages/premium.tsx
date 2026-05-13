@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Layout } from "@/components/layout";
 import { Crown, Zap, Shield, Check, Users, Clock, Copy, Info } from "lucide-react";
 import { useLocation } from "wouter";
-
+import { useUserStore } from "@/lib/user-store";
 import { getOrCreateSession } from "@/lib/session";
 
 const WA_NUMBER = "917571083385";
@@ -95,11 +95,33 @@ const FEATURES = [
 
 export default function Premium() {
   const [, navigate] = useLocation();
+  const { signedInUser } = useUserStore();
   const [userCode, setUserCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Use real referral code from signed-in user (from database)
+  // Only fall back to /api/user/init if user is not signed in
   const initUser = useCallback(async () => {
-    const sessionId = getOrCreateSession();
+    // Priority 1: Use the logged-in user's real referral code
+    if (signedInUser?.referralCode) {
+      setUserCode(signedInUser.referralCode);
+      return;
+    }
+
+    // Priority 2: Fetch from API using signed-in user's sessionId
+    const sessionId = signedInUser?.sessionId || getOrCreateSession();
+    try {
+      const res = await fetch(`${API_BASE}/api/user/me?sessionId=${encodeURIComponent(sessionId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.referralCode) {
+          setUserCode(data.referralCode);
+          return;
+        }
+      }
+    } catch {}
+
+    // Priority 3: Fallback init for anonymous users
     try {
       const res = await fetch(`${API_BASE}/api/user/init`, {
         method: "POST",
@@ -109,7 +131,7 @@ export default function Premium() {
       const data = await res.json();
       if (data.referralCode) setUserCode(data.referralCode);
     } catch {}
-  }, []);
+  }, [signedInUser]);
 
   useEffect(() => { initUser(); }, [initUser]);
 
