@@ -207,6 +207,14 @@
   --sidebar-accent: 213 24% 92%;
   --sidebar-accent-foreground: 199 92% 42%;
   --sidebar-ring: 199 92% 42%;
+
+  --chart-1: 199 92% 42%;
+  --chart-2: 255 60% 50%;
+  --chart-3: 142 71% 36%;
+  --chart-4: 38 92% 42%;
+  --chart-5: 357 78% 50%;
+
+  color-scheme: light;
 }
 
 .light .glow-border {
@@ -216,4 +224,34 @@
 
 .light .text-glow {
   text-shadow: none;
+}
+
+/* Light mode overrides for hardcoded dark colors used in components */
+.light .bg-black\/60,
+.light .bg-black\/70 {
+  background-color: hsl(0 0% 0% / 0.4) !important;
+}
+
+/* Fix Tailwind arbitrary dark colors in light mode */
+.light [class*="from-[#0d0d14]"],
+.light [class*="from-[#12111f]"],
+.light [class*="from-[#0a0a10]"],
+.light [class*="via-[#12111f]"],
+.light [class*="to-[#0a0a10]"] {
+  --tw-gradient-from: hsl(0 0% 100%) !important;
+  --tw-gradient-via: hsl(213 24% 97%) !important;
+  --tw-gradient-to: hsl(210 30% 96%) !important;
+}
+
+/* Light mode scrollbar */
+.light ::-webkit-scrollbar-thumb {
+  background: hsl(213 24% 80%);
+}
+.light ::-webkit-scrollbar-thumb:hover {
+  background: hsl(213 24% 70%);
+}
+
+/* Light mode better shadows for cards */
+.light .shadow-2xl {
+  box-shadow: 0 10px 40px hsl(213 30% 80% / 0.5) !important;
 }
