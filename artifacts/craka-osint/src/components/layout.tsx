@@ -163,7 +163,7 @@ export function Layout({ children }: LayoutProps) {
 
         <div className="pt-3 pb-1">
           <div className="text-xs text-muted-foreground font-semibold mb-2 uppercase tracking-widest">
-            Account
+            {t("nav.account", "Account")}
           </div>
         </div>
 
@@ -177,7 +177,7 @@ export function Layout({ children }: LayoutProps) {
             }`}
           >
             <User className="w-4 h-4" />
-            <span className="text-sm font-medium">Profile</span>
+            <span className="text-sm font-medium">{t("nav.profile", "Profile")}</span>
           </div>
         </Link>
 
@@ -191,7 +191,7 @@ export function Layout({ children }: LayoutProps) {
             }`}
           >
             <Bell className="w-4 h-4" />
-            <span className="text-sm font-medium">Notifications</span>
+            <span className="text-sm font-medium">{t("nav.notifications", "Notifications")}</span>
             {unreadCount > 0 && (
               <span className="ml-auto text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                 {unreadCount}
@@ -226,7 +226,7 @@ export function Layout({ children }: LayoutProps) {
           <Link href="/login">
             <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-primary/5 border border-primary/20 hover:bg-primary/10 transition-colors cursor-pointer">
               <LogIn className="w-4 h-4 text-primary flex-shrink-0" />
-              <span className="text-sm font-medium text-primary">Sign in with Google</span>
+              <span className="text-sm font-medium text-primary">{t("login.google", "Sign in with Google")}</span>
             </div>
           </Link>
         )}
@@ -247,7 +247,7 @@ export function Layout({ children }: LayoutProps) {
           </button>
         )}
         <div className="text-xs text-muted-foreground text-center">
-          Developed by <span className="text-primary text-glow">@DM_CRAKA_OWNER_BOT</span>
+          {t("misc.developed_by", "Developed by")} <span className="text-primary text-glow">@DM_CRAKA_OWNER_BOT</span>
         </div>
       </div>
     </aside>
