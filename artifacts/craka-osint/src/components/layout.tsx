@@ -157,7 +157,7 @@ export function Layout({ children }: LayoutProps) {
             }`}
           >
             <Gift className="w-4 h-4" />
-            <span className="text-sm font-medium">{t("nav.refer", "Refer & Earn")}</span>
+            <span className="text-sm font-medium">{t("nav.refer", "Refer")}</span>
           </div>
         </Link>
 
