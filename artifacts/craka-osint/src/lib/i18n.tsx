@@ -13,7 +13,7 @@ const TRANSLATIONS: Record<string, { en: string; hi: string }> = {
   "nav.transactions": { en: "Transactions", hi: "लेन-देन" },
   "nav.admin":        { en: "Admin Panel",  hi: "एडमिन पैनल" },
   "nav.premium":      { en: "Premium",      hi: "प्रीमियम" },
-  "nav.refer":        { en: "Refer & Earn", hi: "रेफर और कमाएँ" },
+  "nav.refer":        { en: "Refer",        hi: "रेफर" },
   "nav.modules":      { en: "Modules",      hi: "मॉड्यूल" },
   "nav.membership":   { en: "Membership",   hi: "सदस्यता" },
   "nav.more":         { en: "More",         hi: "और" },
@@ -64,7 +64,7 @@ const TRANSLATIONS: Record<string, { en: string; hi: string }> = {
   "profile.coupon_hint": { en: "Get coupon codes from admin or special promotions.", hi: "एडमिन या स्पेशल प्रमोशन से कूपन कोड प्राप्त करें।" },
   "profile.referral_apply": { en: "Apply Friend's Referral Code", hi: "दोस्त का रेफरल कोड लगाएँ" },
   "profile.referral_hint": { en: "Enter your friend's referral code — you'll get +5 tokens!", hi: "दोस्त का रेफरल कोड डालो — आपको +5 टोकन मिलेंगे!" },
-  "profile.refer_earn": { en: "Refer & Earn", hi: "रेफर करें और कमाएँ" },
+  "profile.refer_earn": { en: "Refer", hi: "रेफर" },
   "profile.invite_friends": { en: "Invite friends for credits", hi: "दोस्तों को बुलाएँ, क्रेडिट कमाएँ" },
   "profile.go_premium": { en: "Go Premium", hi: "प्रीमियम लें" },
   "profile.unlimited": { en: "Unlimited searches", hi: "असीमित खोज" },
@@ -87,7 +87,7 @@ const TRANSLATIONS: Record<string, { en: string; hi: string }> = {
   "premium.support":  { en: "24/7 support",  hi: "24/7 सहायता" },
 
   // Refer page
-  "refer.title":      { en: "Refer & Earn",  hi: "रेफर करें और कमाएँ" },
+  "refer.title":      { en: "Refer",         hi: "रेफर" },
   "refer.subtitle":   { en: "Share your referral code with friends and earn free tokens!", hi: "दोस्तों के साथ अपना रेफरल कोड शेयर करें और मुफ़्त टोकन कमाएँ!" },
 
   // Transactions page
