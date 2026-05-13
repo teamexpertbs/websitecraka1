@@ -6,12 +6,16 @@ import { eq, or } from "drizzle-orm";
 import { sendMagicLink, sendVerificationEmail, isEmailConfigured } from "../lib/email";
 import { generateUserToken } from "./auth";
 import { logger } from "../lib/logger";
-import { nanoid } from "nanoid";
 
 const router = Router();
 
+// Use crypto instead of nanoid to avoid ESM bundling issues
+function genId(length: number = 16): string {
+  return crypto.randomBytes(length).toString("base64url").slice(0, length);
+}
+
 function genReferralCode(): string {
-  return nanoid(8).toUpperCase();
+  return crypto.randomBytes(6).toString("base64url").slice(0, 8).toUpperCase();
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -37,12 +41,20 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   const emailLower = email.toLowerCase().trim();
 
   try {
-    const existing = await db
-      .select()
-      .from(crakaUsers)
-      .where(eq(crakaUsers.email, emailLower))
-      .limit(1)
-      .then((r) => r[0] ?? null);
+    // Check if email already exists
+    let existing;
+    try {
+      existing = await db
+        .select()
+        .from(crakaUsers)
+        .where(eq(crakaUsers.email, emailLower))
+        .limit(1)
+        .then((r) => r[0] ?? null);
+    } catch (dbErr) {
+      logger.error({ err: dbErr }, "DB error checking existing user in /auth/register");
+      res.status(500).json({ error: "Database error. Please try again." });
+      return;
+    }
 
     if (existing) {
       if (existing.passwordHash) {
@@ -56,60 +68,113 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Email verification token (reuse magic_link fields)
+    // Email verification token
     const verifyToken = crypto.randomBytes(32).toString("hex");
     const verifyExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
     // Check if this email previously had an account (re-registration abuse prevention)
-    const wasDeleted = await db
-      .select()
-      .from(deletedAccounts)
-      .where(eq(deletedAccounts.email, emailLower))
-      .limit(1)
-      .then((r) => r[0] ?? null);
+    let wasDeleted = null;
+    try {
+      wasDeleted = await db
+        .select()
+        .from(deletedAccounts)
+        .where(eq(deletedAccounts.email, emailLower))
+        .limit(1)
+        .then((r) => r[0] ?? null);
+    } catch (dbErr) {
+      // Table might not exist yet — treat as no deleted account found
+      logger.warn({ err: dbErr }, "Could not check deleted_accounts table (may not exist yet)");
+      wasDeleted = null;
+    }
 
     // Referral bonus
     let creditsEarned = wasDeleted ? 0 : 5;
     let referredBy: string | null = null;
     if (refCode) {
-      const referrer = await db
-        .select()
-        .from(crakaUsers)
-        .where(eq(crakaUsers.referralCode, refCode.toUpperCase()))
-        .limit(1)
-        .then((r) => r[0] ?? null);
-      if (referrer) {
-        referredBy = refCode.toUpperCase();
-        creditsEarned = wasDeleted ? 0 : 10;
-        await db
-          .update(crakaUsers)
-          .set({ creditsEarned: referrer.creditsEarned + 5, totalReferrals: referrer.totalReferrals + 1 })
-          .where(eq(crakaUsers.id, referrer.id));
+      try {
+        const referrer = await db
+          .select()
+          .from(crakaUsers)
+          .where(eq(crakaUsers.referralCode, refCode.toUpperCase()))
+          .limit(1)
+          .then((r) => r[0] ?? null);
+        if (referrer) {
+          referredBy = refCode.toUpperCase();
+          creditsEarned = wasDeleted ? 0 : 10;
+          await db
+            .update(crakaUsers)
+            .set({ creditsEarned: (referrer.creditsEarned ?? 0) + 5, totalReferrals: (referrer.totalReferrals ?? 0) + 1 })
+            .where(eq(crakaUsers.id, referrer.id));
+        }
+      } catch (refErr) {
+        logger.warn({ err: refErr }, "Referral code lookup failed, continuing without referral");
       }
     }
 
-    const sessionId = nanoid(16);
+    const sessionId = genId(16);
     const newReferralCode = genReferralCode();
 
-    await db.insert(crakaUsers).values({
-      sessionId,
-      referralCode: newReferralCode,
-      referredBy,
-      email: emailLower,
-      displayName: emailLower.split("@")[0],
-      passwordHash,
-      emailVerified: false,
-      magicLinkToken: verifyToken,
-      magicLinkExpiry: verifyExpiry,
-      creditsEarned,
-    });
+    try {
+      await db.insert(crakaUsers).values({
+        sessionId,
+        referralCode: newReferralCode,
+        referredBy,
+        email: emailLower,
+        displayName: emailLower.split("@")[0],
+        passwordHash,
+        emailVerified: false,
+        magicLinkToken: verifyToken,
+        magicLinkExpiry: verifyExpiry,
+        creditsEarned,
+        totalReferrals: 0,
+        isPremium: false,
+        isBanned: false,
+        twoFaEnabled: false,
+      });
+    } catch (insertErr: any) {
+      logger.error({ err: insertErr }, "DB insert error in /auth/register");
+      // Handle unique constraint violations
+      if (insertErr?.code === "23505") {
+        if (insertErr?.constraint?.includes("referral_code")) {
+          // Referral code collision — retry with a new one
+          const retryCode = genReferralCode();
+          await db.insert(crakaUsers).values({
+            sessionId,
+            referralCode: retryCode,
+            referredBy,
+            email: emailLower,
+            displayName: emailLower.split("@")[0],
+            passwordHash,
+            emailVerified: false,
+            magicLinkToken: verifyToken,
+            magicLinkExpiry: verifyExpiry,
+            creditsEarned,
+            totalReferrals: 0,
+            isPremium: false,
+            isBanned: false,
+            twoFaEnabled: false,
+          });
+        } else {
+          res.status(409).json({ error: "Email already registered. Please sign in." });
+          return;
+        }
+      } else {
+        res.status(500).json({ error: "Failed to create account. Please try again." });
+        return;
+      }
+    }
 
     // Send verification email
     let emailSent = false;
     let devToken: string | null = null;
 
     if (isEmailConfigured()) {
-      emailSent = await sendVerificationEmail(emailLower, verifyToken, emailLower.split("@")[0]);
+      try {
+        emailSent = await sendVerificationEmail(emailLower, verifyToken, emailLower.split("@")[0]);
+      } catch (emailErr) {
+        logger.error({ err: emailErr }, "Failed to send verification email");
+        emailSent = false;
+      }
     } else {
       devToken = verifyToken;
     }
@@ -122,7 +187,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       ...(devToken ? { dev_verify_token: devToken } : {}),
     });
   } catch (err) {
-    logger.error({ err }, "Error in /auth/register");
+    logger.error({ err }, "Unhandled error in /auth/register");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -175,14 +240,18 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     }
 
     // Log login
-    await db.insert(loginLogs).values({
-      sessionId: user.sessionId,
-      email: user.email ?? null,
-      ipAddress: req.ip ?? (req.headers["x-forwarded-for"] as string) ?? null,
-      userAgent: req.headers["user-agent"] ?? null,
-      status: "success",
-      method: "email_password",
-    });
+    try {
+      await db.insert(loginLogs).values({
+        sessionId: user.sessionId,
+        email: user.email ?? null,
+        ipAddress: req.ip ?? (req.headers["x-forwarded-for"] as string) ?? null,
+        userAgent: req.headers["user-agent"] ?? null,
+        status: "success",
+        method: "email_password",
+      });
+    } catch (logErr) {
+      logger.warn({ err: logErr }, "Failed to insert login log");
+    }
 
     const token = generateUserToken({
       sessionId: user.sessionId,
@@ -302,7 +371,6 @@ router.post("/auth/resend-verification", async (req, res): Promise<void> => {
 });
 
 /* ─────────────────────────────────────────────────────────
-   POST /api/auth/forgot-password  (password reset — overrides old magic link forgot)
    POST /api/auth/reset-password
 ───────────────────────────────────────────────────────── */
 router.post("/auth/reset-password", async (req, res): Promise<void> => {
