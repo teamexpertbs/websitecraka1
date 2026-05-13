@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Layout } from "@/components/layout";
 import { useUserStore } from "@/lib/user-store";
-import { useAuthStore } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -85,21 +84,20 @@ function useRedeemCoupon() {
   });
 }
 
-function useDeleteAccount(token: string | null) {
+function useDeleteAccount(userToken: string | null) {
   return useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not authenticated");
+      if (!userToken) throw new Error("Not authenticated");
       return customFetch("/api/user/account", {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${userToken}` },
       }) as any;
     },
   });
 }
 
 export default function Profile() {
-  const { signedInUser, logout } = useUserStore();
-  const { token, setToken } = useAuthStore();
+  const { signedInUser, userToken, logout } = useUserStore();
   const qc = useQueryClient();
   const { toast } = useToast();
   const sessionId = signedInUser?.sessionId || getOrCreateSession();
@@ -113,10 +111,10 @@ export default function Profile() {
   const deleteBookmark = useDeleteBookmark();
   const redeemCoupon = useRedeemCoupon();
   const applyReferral = useApplyReferral();
-  const deleteAccount = useDeleteAccount(token);
+  const deleteAccount = useDeleteAccount(userToken);
 
   const user = signedInUser;
-  const isLoggedIn = !!(signedInUser || token || sessionId);
+  const isLoggedIn = !!(signedInUser || userToken || sessionId);
 
   const handleApplyReferral = () => {
     const code = referralInput.trim().toUpperCase();
@@ -165,7 +163,6 @@ export default function Profile() {
       onSuccess: () => {
         toast({ title: "Account Deleted", description: "Aapka account permanently delete ho gaya." });
         logout();
-        setToken(null);
         qc.clear();
         setShowDeleteConfirm(false);
         window.location.href = "/";
