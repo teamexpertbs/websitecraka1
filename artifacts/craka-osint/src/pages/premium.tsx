@@ -58,7 +58,7 @@ const PLANS = [
       "Bulk search (up to 50)",
       "10 min cache refresh",
       "PDF export",
-      "Refer & earn 2x credits",
+      "Refer 2x credits",
       "WhatsApp bot access",
     ],
   },
@@ -79,7 +79,7 @@ const PLANS = [
       "Bulk search unlimited",
       "Instant cache",
       "All export formats",
-      "Refer & earn 3x credits",
+      "Refer 3x credits",
       "Private Telegram bot",
       "Priority support 24/7",
     ],
@@ -89,7 +89,7 @@ const PLANS = [
 const FEATURES = [
   { icon: Zap, title: "Lightning Fast", desc: "Priority API access with no rate limiting or queues" },
   { icon: Shield, title: "Secure & Private", desc: "Your queries are never stored after session ends" },
-  { icon: Users, title: "Refer & Earn", desc: "Earn free credits by referring friends to CraKa" },
+  { icon: Users, title: "Refer", desc: "Get free credits by referring friends to CraKa" },
   { icon: Clock, title: "Always Available", desc: "99.9% uptime with cached results for instant access" },
 ];
 
@@ -314,7 +314,7 @@ export default function Premium() {
             onClick={() => navigate("/refer")}
             className="text-sm text-primary hover:underline"
           >
-            🎁 Refer friends and earn free Premium credits →
+            🎁 Refer friends for free Premium credits →
           </button>
         </div>
       </div>
