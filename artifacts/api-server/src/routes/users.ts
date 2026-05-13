@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { crakaUsers, crakaReferrals, osintTokenTransactions, bookmarks, coupons, couponUses, loginLogs, osintHistory, deletedAccounts } from "@workspace/db";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { eq, sql, desc, and, or } from "drizzle-orm";
 import { verifyUserToken } from "./auth";
 import { UserInitSchema, UserMeSchema, formatValidationError } from "../lib/validation";
 import { logger } from "../lib/logger";
@@ -74,10 +74,10 @@ router.post("/user/init", async (req, res): Promise<void> => {
         }
       }
 
-      const initialCredits = referredBy ? 10 : 5;
+      // Anonymous init: always give 0 credits (credits are only granted at real signup/Google sign-in)
+      const initialCredits = 0;
       const inserted = await db.insert(crakaUsers).values({ sessionId, referralCode, referredBy, isPremium: false, creditsEarned: initialCredits, totalReferrals: 0 }).returning();
       user = inserted[0];
-      await logTokenTxn({ sessionId, type: "init", amount: initialCredits, reason: referredBy ? "Welcome bonus + referred signup" : "Welcome bonus", balanceAfter: initialCredits });
     }
 
     res.json({
@@ -268,11 +268,37 @@ router.delete("/user/account", async (req, res): Promise<void> => {
       res.status(404).json({ error: "User not found" });
       return;
     }
+
     // Record email/googleId in deleted_accounts to prevent re-registration credit abuse
-    await db.insert(deletedAccounts).values({
-      email: user.email ?? null,
-      googleId: user.googleId ?? null,
-    }).catch(() => {});
+    // Also record sessionId for extra safety
+    try {
+      await db.insert(deletedAccounts).values({
+        email: user.email ?? null,
+        googleId: user.googleId ?? null,
+      });
+      logger.info({ email: user.email, googleId: user.googleId }, "Recorded deleted account for abuse prevention");
+    } catch (delErr) {
+      logger.error({ err: delErr }, "Failed to record deleted account — attempting to create table");
+      // If table doesn't exist, try creating it inline
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS deleted_accounts (
+            id SERIAL PRIMARY KEY,
+            email TEXT,
+            google_id TEXT,
+            deleted_at TIMESTAMP DEFAULT NOW() NOT NULL
+          )
+        `);
+        await db.insert(deletedAccounts).values({
+          email: user.email ?? null,
+          googleId: user.googleId ?? null,
+        });
+        logger.info("Created deleted_accounts table and recorded entry");
+      } catch (createErr) {
+        logger.error({ err: createErr }, "Could not create deleted_accounts table");
+      }
+    }
+
     // Delete all user data
     await db.delete(bookmarks).where(eq(bookmarks.sessionId, sessionId)).catch(() => {});
     await db.delete(osintHistory).where(eq(osintHistory.sessionId, sessionId)).catch(() => {});
@@ -280,6 +306,7 @@ router.delete("/user/account", async (req, res): Promise<void> => {
     await db.delete(couponUses).where(eq(couponUses.sessionId, sessionId)).catch(() => {});
     await db.delete(crakaReferrals).where(eq(crakaReferrals.referredSessionId, sessionId)).catch(() => {});
     await db.delete(crakaReferrals).where(eq(crakaReferrals.referrerCode, user.referralCode)).catch(() => {});
+    await db.delete(osintTokenTransactions).where(eq(osintTokenTransactions.sessionId, sessionId)).catch(() => {});
     await db.delete(crakaUsers).where(eq(crakaUsers.sessionId, sessionId));
     res.json({ success: true, message: "Account deleted successfully." });
   } catch (err) {
