@@ -6,19 +6,22 @@ import http from "http";
 import { logTokenTxn } from "../lib/tokenLog";
 import { createRateLimiter } from "../lib/rateLimit";
 import { lookupIndiaPhone } from "../lib/indiaPhoneLookup";
+import { requireUserAuth } from "../lib/userAuth";
 
 const router = Router();
 
 const DEVELOPER_CREDIT = "@DM_CRAKA_OWNER_BOT";
 const DEFAULT_CACHE_TTL_SECONDS = 1800; // 30 minutes
+const FREE_PLAN_TOKENS = 10;
 
 // Per-session rate limit on lookups: 10 requests / minute
 const lookupRateLimit = createRateLimiter({
   windowMs: 60_000,
   max: 10,
   keyFn: (req) => {
-    const sid = (req.body && (req.body as any).sessionId) as string | undefined;
-    return sid && typeof sid === "string" ? `lookup:${sid}` : null;
+    const payload = (req as any).userPayload;
+    const sid = payload?.sessionId || ((req.body && (req.body as any).sessionId) as string | undefined);
+    return sid ? `lookup:${sid}` : null;
   },
   message: "Too many lookups. Aap ek minute mein sirf 10 searches kar sakte hain. Thodi der ruk kar try karein.",
 });
@@ -118,7 +121,7 @@ function injectDeveloperCredit(data: Record<string, unknown>): Record<string, un
   function replaceHandlesInString(s: string): string {
     let out = s;
     for (const handle of knownHandles) {
-      const re = new RegExp(handle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+      const re = new RegExp(handle.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"), "gi");
       out = out.replace(re, DEVELOPER_CREDIT);
     }
     return out;
@@ -148,6 +151,9 @@ function injectDeveloperCredit(data: Record<string, unknown>): Record<string, un
   return processed;
 }
 
+// Require auth for API list as well, to be completely secure and authenticated
+router.use(requireUserAuth);
+
 router.get("/osint/apis", async (req, res) => {
   const apis = await db.select().from(osintApis).where(eq(osintApis.isActive, true));
   const mapped = apis.map(a => ({
@@ -160,7 +166,9 @@ router.get("/osint/apis", async (req, res) => {
 });
 
 router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
-  const { slug, query: rawQuery, sessionId } = req.body as { slug: string; query: string; sessionId: string };
+  const payload = (req as any).userPayload;
+  const sessionId = payload?.sessionId;
+  const { slug, query: rawQuery } = req.body as { slug: string; query: string };
   
   if (!slug || !rawQuery || !sessionId) {
     res.status(400).json({ error: "Missing slug, query, or sessionId" });
@@ -199,14 +207,14 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
 
   // ── Premium Expiry Check ──────────────────────────────────────────────────
   // If premium has expired, immediately reset to free plan and cap tokens
-  const FREE_PLAN_TOKENS = 10;
   let userData = userRaw[0];
   if (userData.isPremium && userData.premiumExpiresAt && new Date() > userData.premiumExpiresAt) {
+    const newBalance = Math.min(userData.creditsEarned, FREE_PLAN_TOKENS);
     const [resetUser] = await db.update(crakaUsers)
-      .set({ isPremium: false, premiumPlan: null, premiumExpiresAt: null, creditsEarned: FREE_PLAN_TOKENS })
+      .set({ isPremium: false, premiumPlan: null, premiumExpiresAt: null, creditsEarned: newBalance })
       .where(eq(crakaUsers.sessionId, sessionId))
       .returning();
-    await logTokenTxn({ sessionId, type: "expire", amount: 0, reason: "Premium expired — tokens reset to free plan limit", balanceAfter: FREE_PLAN_TOKENS });
+    await logTokenTxn({ sessionId, type: "expire", amount: 0, reason: "Premium expired — balance capped to free plan limit", balanceAfter: newBalance });
     userData = resetUser;
   }
 
@@ -219,17 +227,23 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
   }
   
   if (!isUnlimited) {
-    // Deduct tokens
+    // Deduct tokens safely with race condition prevention
     const [updated] = await db.update(crakaUsers)
       .set({ creditsEarned: sql`${crakaUsers.creditsEarned} - ${apiRow.credits}` })
-      .where(eq(crakaUsers.sessionId, sessionId))
+      .where(and(eq(crakaUsers.sessionId, sessionId), sql`${crakaUsers.creditsEarned} >= ${apiRow.credits}`))
       .returning({ creditsEarned: crakaUsers.creditsEarned });
+      
+    if (!updated) {
+      res.status(403).json({ error: "Insufficient tokens to perform this search (Concurrent request prevented)." });
+      return;
+    }
+
     await logTokenTxn({
       sessionId,
       type: "spend",
       amount: -apiRow.credits,
       reason: `${apiRow.name} lookup`,
-      balanceAfter: updated?.creditsEarned ?? 0,
+      balanceAfter: updated.creditsEarned,
     });
   }
   
@@ -255,7 +269,7 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
   if (slug === "dl") {
     // Parse DL number: State(2) + RTO(2-3) + Year(4) + Serial(4-7)
     const dlRaw = query.toUpperCase().replace(/[\s\-]/g, "");
-    const dlMatch = dlRaw.match(/^([A-Z]{2})(\d{2})(\d{4})(\d{4,7})$/);
+    const dlMatch = dlRaw.match(/^([A-Z]{2})(\\d{2})(\\d{4})(\\d{4,7})$/);
     const stateMap: Record<string, string> = {
       "AP":"Andhra Pradesh","AR":"Arunachal Pradesh","AS":"Assam","BR":"Bihar","CG":"Chhattisgarh",
       "GA":"Goa","GJ":"Gujarat","HR":"Haryana","HP":"Himachal Pradesh","JK":"Jammu & Kashmir",
@@ -293,7 +307,17 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
       [4,0,1,2,3,9,5,6,7,8],[5,9,8,7,6,0,4,3,2,1],[6,5,9,8,7,1,0,4,3,2],[7,6,5,9,8,2,1,0,4,3],
       [8,7,6,5,9,3,2,1,0,4],[9,8,7,6,5,4,3,2,1,0]
     ];
-    const permute = [[0,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,6,1,4,2],[8,9,1,6,0,4,3,5,2,7],[9,4,5,3,1,2,6,8,7,0]];
+    // Correct 8-row permute matrix for Verhoeff
+    const permute = [
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      [1, 5, 7, 6, 2, 8, 3, 0, 9, 4],
+      [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
+      [8, 9, 1, 6, 0, 4, 3, 5, 2, 7],
+      [9, 4, 5, 3, 1, 2, 6, 8, 7, 0],
+      [4, 2, 8, 6, 5, 7, 3, 9, 0, 1],
+      [2, 7, 9, 3, 8, 0, 6, 4, 1, 5],
+      [7, 0, 4, 6, 9, 1, 3, 2, 5, 8]
+    ];
     let check = 0;
     const reversed = aaNum.split("").reverse();
     for (let i = 0; i < reversed.length; i++) {
@@ -493,15 +517,17 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
 });
 
 router.get("/osint/history", async (req, res) => {
+  const payload = (req as any).userPayload;
+  const sessionId = payload?.sessionId;
+  
+  if (!sessionId) {
+    res.status(400).json({ error: "sessionId required in token payload" });
+    return;
+  }
+  
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const page = Math.max(Number(req.query.page) || 1, 1);
   const offset = (page - 1) * limit;
-  const sessionId = String(req.query.sessionId || "").trim();
-
-  if (!sessionId) {
-    res.status(400).json({ error: "sessionId required" });
-    return;
-  }
 
   const [entries, totalResult] = await Promise.all([
     db.select().from(osintHistory)
