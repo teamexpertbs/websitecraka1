@@ -357,8 +357,15 @@ router.post("/admin/revoke-premium", adminAuthMiddleware, async (req, res) => {
     res.status(404).json({ error: "User not found with that ID" });
     return;
   }
-  await db.update(crakaUsers).set({ isPremium: false, premiumPlan: null }).where(eq(crakaUsers.referralCode, code));
-  res.json({ success: true, message: `Premium revoked for user ${code}` });
+  const FREE_PLAN_MAX = 10;
+  const cappedCredits = Math.min(user.creditsEarned, FREE_PLAN_MAX);
+  await db.update(crakaUsers).set({
+    isPremium: false,
+    premiumPlan: null,
+    premiumExpiresAt: null,
+    creditsEarned: cappedCredits,
+  }).where(eq(crakaUsers.referralCode, code));
+  res.json({ success: true, message: `Premium revoked for user ${code}. Credits capped to ${cappedCredits}.` });
 });
 
 router.get("/admin/users", adminAuthMiddleware, async (req, res) => {

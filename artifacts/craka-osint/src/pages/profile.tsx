@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Layout } from "@/components/layout";
 import { useUserStore } from "@/lib/user-store";
+import { useCurrentUser, isPremiumActive, CURRENT_USER_KEY } from "@/lib/user";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -108,11 +109,13 @@ export default function Profile() {
 
   const { data: bookmarkList = [], isLoading: bookmarksLoading } = useBookmarks(sessionId);
   const { data: userMe } = useUserMe(sessionId);
+  const { data: currentUser } = useCurrentUser();
   const deleteBookmark = useDeleteBookmark();
   const redeemCoupon = useRedeemCoupon();
   const applyReferral = useApplyReferral();
   const deleteAccount = useDeleteAccount(userToken);
 
+  // Use live DB data for premium status; signedInUser is stale JWT from login time
   const user = signedInUser;
   const isLoggedIn = !!(signedInUser || userToken || sessionId);
 
@@ -174,9 +177,12 @@ export default function Profile() {
     });
   };
 
-  const premiumBadgeColor = user?.isPremium
-    ? user?.premiumPlan === "Elite" ? "text-purple-400 border-purple-400/30 bg-purple-400/10"
-    : user?.premiumPlan === "Pro" ? "text-blue-400 border-blue-400/30 bg-blue-400/10"
+  // currentUser has fresh DB data; signedInUser.isPremium is stale from JWT
+  const isPremiumUser = currentUser ? isPremiumActive(currentUser) : (signedInUser?.isPremium ?? false);
+  const activePlanLabel = currentUser?.premiumPlan ?? signedInUser?.premiumPlan;
+  const premiumBadgeColor = isPremiumUser
+    ? activePlanLabel === "Elite" ? "text-purple-400 border-purple-400/30 bg-purple-400/10"
+    : activePlanLabel === "Pro" ? "text-blue-400 border-blue-400/30 bg-blue-400/10"
     : "text-yellow-400 border-yellow-400/30 bg-yellow-400/10"
     : "text-muted-foreground border-border bg-muted/30";
 
@@ -207,7 +213,7 @@ export default function Profile() {
                 {signedInUser?.email && <p className="text-sm text-muted-foreground truncate">{signedInUser.email}</p>}
                 <div className="flex flex-wrap gap-2 mt-2">
                   <Badge variant="outline" className={`text-xs font-semibold ${premiumBadgeColor}`}>
-                    {user?.isPremium ? <><Crown className="w-3 h-3 mr-1" />{user.premiumPlan || "Premium"}</> : "Free Plan"}
+                    {isPremiumUser ? <><Crown className="w-3 h-3 mr-1" />{activePlanLabel || "Premium"}</> : "Free Plan"}
                   </Badge>
                   {signedInUser?.referralCode && (
                     <Badge variant="outline" className="text-xs font-mono border-border text-muted-foreground">

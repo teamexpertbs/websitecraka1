@@ -20,7 +20,10 @@ export function userAuthMiddleware(req: Request, res: Response, next: NextFuncti
   const payload = verifyUserToken(token);
 
   if (!payload) {
-    res.status(401).json({ error: "Invalid or expired token" });
+    // Invalid or expired token — treat as anonymous user so lookups still work
+    // sessionId will be read from request body/params as fallback
+    (req as any).userPayload = null;
+    next();
     return;
   }
 
