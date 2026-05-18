@@ -5,11 +5,16 @@ import { db, crakaUsers, loginLogs, deletedAccounts } from "@workspace/db";
 import { eq, or } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { logTokenTxn } from "../lib/tokenLog";
+import { generateSessionId, generateReferralCode } from "../lib/utils";
 
 const router = Router();
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-key-change-in-production";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  logger.warn("\u26a0\ufe0f JWT_SECRET not set! Using insecure fallback. SET THIS IN PRODUCTION!");
+}
+const SECRET = JWT_SECRET || "dev-secret-CHANGE-ME-" + Date.now();
 const USER_JWT_EXPIRY = "30d";
 
 export interface UserJWTPayload {
@@ -23,28 +28,20 @@ export interface UserJWTPayload {
 }
 
 export function generateUserToken(payload: Omit<UserJWTPayload, "iat" | "exp">): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: USER_JWT_EXPIRY } as any);
+  return jwt.sign(payload, SECRET, { expiresIn: USER_JWT_EXPIRY } as any);
 }
 
 export function verifyUserToken(token: string): UserJWTPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as UserJWTPayload;
+    return jwt.verify(token, SECRET) as UserJWTPayload;
   } catch {
     return null;
   }
 }
 
-function generateReferralCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "CRAKA-";
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
-}
-
 /**
  * POST /api/auth/google
  * Verify Google ID token, find or create user, return user JWT.
- * Body: { idToken: string, sessionId?: string }
  */
 router.post("/auth/google", async (req, res): Promise<void> => {
   try {
@@ -96,7 +93,6 @@ router.post("/auth/google", async (req, res): Promise<void> => {
       .then((r) => r[0] ?? null);
 
     if (!user && existingSessionId) {
-      // Link existing anonymous session to Google account
       user = await db
         .select()
         .from(crakaUsers)
@@ -105,7 +101,6 @@ router.post("/auth/google", async (req, res): Promise<void> => {
         .then((r) => r[0] ?? null);
 
       if (user) {
-        // Merge: attach Google identity to existing session
         const [updated] = await db
           .update(crakaUsers)
           .set({ googleId, email, displayName, avatarUrl })
@@ -116,10 +111,8 @@ router.post("/auth/google", async (req, res): Promise<void> => {
     }
 
     if (!user) {
-      // Brand-new user — create with Google identity
-      const sessionId =
-        existingSessionId ??
-        "sess_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      // Brand-new user
+      const sessionId = existingSessionId ?? generateSessionId();
       const newReferralCode = generateReferralCode();
 
       // Check if this email/googleId previously had an account (abuse prevention)
@@ -135,25 +128,29 @@ router.post("/auth/google", async (req, res): Promise<void> => {
         .limit(1)
         .then((r) => r[0] ?? null);
 
-      // Check if referral code is valid
-      let referredByUser = null;
+      // No welcome bonus if this identity was seen before (re-registration abuse)
+      const bonusCredits = wasDeleted ? 0 : 5;
+
+      // Track referral code for referredBy (but NO token rewards)
+      let referredByCode: string | null = null;
       if (referralCode) {
-        referredByUser = await db
+        const referredByUser = await db
           .select()
           .from(crakaUsers)
           .where(eq(crakaUsers.referralCode, referralCode.toUpperCase()))
           .limit(1)
           .then((r) => r[0] ?? null);
+        if (referredByUser) {
+          referredByCode = referredByUser.referralCode;
+        }
       }
 
-      // No welcome bonus if this identity was seen before (re-registration abuse)
-      const bonusCredits = wasDeleted ? 0 : referredByUser ? 10 : 5;
       const [created] = await db
         .insert(crakaUsers)
         .values({
           sessionId,
           referralCode: newReferralCode,
-          referredBy: referredByUser?.referralCode ?? null,
+          referredBy: referredByCode,
           googleId,
           email,
           displayName,
@@ -170,34 +167,32 @@ router.post("/auth/google", async (req, res): Promise<void> => {
           sessionId: user.sessionId,
           type: "init",
           amount: bonusCredits,
-          reason: referredByUser ? "Welcome bonus + referral bonus (Google sign-in)" : "Welcome bonus (Google sign-in)",
+          reason: "Welcome bonus (Google sign-in)",
           balanceAfter: bonusCredits,
         });
       }
 
-      // Reward the referrer
-      if (referredByUser) {
-        const newCredits = (referredByUser.creditsEarned ?? 0) + 5;
+      // Increment referrer's totalReferrals count (no token reward)
+      if (referredByCode) {
         await db
           .update(crakaUsers)
-          .set({ creditsEarned: newCredits, totalReferrals: (referredByUser.totalReferrals ?? 0) + 1 })
-          .where(eq(crakaUsers.id, referredByUser.id));
-        await logTokenTxn({
-          sessionId: referredByUser.sessionId,
-          type: "earn",
-          amount: 5,
-          reason: `Referral bonus — ${displayName} joined`,
-          balanceAfter: newCredits,
-        });
+          .set({ totalReferrals: (await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, referredByCode)).then(r => r[0]?.totalReferrals ?? 0)) + 1 })
+          .where(eq(crakaUsers.referralCode, referredByCode))
+          .catch(err => logger.warn({ err }, "Failed to update referrer count"));
       }
     } else if (!user.googleId) {
-      // User exists but hasn't linked Google yet (shouldn't reach here normally)
       const [updated] = await db
         .update(crakaUsers)
         .set({ googleId, email, displayName, avatarUrl })
         .where(eq(crakaUsers.id, user.id))
         .returning();
       user = updated;
+    }
+
+    // Check if user is banned
+    if (user.isBanned) {
+      res.status(403).json({ error: "Your account has been suspended. Contact support." });
+      return;
     }
 
     // Mark email as verified (Google already verified it)
@@ -256,8 +251,8 @@ router.get("/auth/me", async (req, res): Promise<void> => {
       return;
     }
     const token = auth.slice(7);
-    const payload = verifyUserToken(token);
-    if (!payload) {
+    const jwtPayload = verifyUserToken(token);
+    if (!jwtPayload) {
       res.status(401).json({ error: "Invalid or expired token" });
       return;
     }
@@ -265,12 +260,18 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     const user = await db
       .select()
       .from(crakaUsers)
-      .where(eq(crakaUsers.sessionId, payload.sessionId))
+      .where(eq(crakaUsers.sessionId, jwtPayload.sessionId))
       .limit(1)
       .then((r) => r[0] ?? null);
 
     if (!user) {
       res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    // #5 FIX: Check if user is banned
+    if (user.isBanned) {
+      res.status(403).json({ error: "Your account has been suspended. Contact support." });
       return;
     }
 
