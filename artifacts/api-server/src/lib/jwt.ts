@@ -1,7 +1,12 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
+import { logger } from "./logger";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-key-change-in-production";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  logger.warn("⚠️ JWT_SECRET not set! Using insecure fallback. SET THIS IN PRODUCTION!");
+}
+const SECRET = JWT_SECRET || "dev-secret-CHANGE-ME-" + Date.now();
 const JWT_EXPIRY = "8h";
 
 export interface JWTPayload {
@@ -10,35 +15,22 @@ export interface JWTPayload {
   exp?: number;
 }
 
-/**
- * Generate JWT token for admin authentication
- */
 export function generateToken(username: string): string {
-  return jwt.sign(
-    { username },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRY }
-  );
+  return jwt.sign({ username }, SECRET, { expiresIn: JWT_EXPIRY });
 }
 
-/**
- * Verify JWT token
- */
 export function verifyToken(token: string): JWTPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, SECRET);
     return decoded as JWTPayload;
-  } catch (err) {
+  } catch {
     return null;
   }
 }
 
-/**
- * Express middleware for JWT authentication
- */
 export function adminAuthMiddleware(req: Request, res: Response, next: NextFunction): void {
   const auth = req.headers["authorization"];
-  
+
   if (!auth || !auth.startsWith("Bearer ")) {
     res.status(401).json({ error: "Missing authorization header" });
     return;
@@ -52,14 +44,10 @@ export function adminAuthMiddleware(req: Request, res: Response, next: NextFunct
     return;
   }
 
-  // Attach payload to request for downstream handlers
   (req as any).user = payload;
   next();
 }
 
-/**
- * Refresh token endpoint for extending session
- */
 export function refreshTokenHandler(req: Request, res: Response): void {
   const auth = req.headers["authorization"];
 

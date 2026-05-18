@@ -8,6 +8,19 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Security: JSON body size limit to prevent abuse
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+// Security headers
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+
 app.use(
   pinoHttp({
     logger,
@@ -27,9 +40,16 @@ app.use(
     },
   }),
 );
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// CORS: Allow specific origins (add your frontend domains here)
+const ALLOWED_ORIGINS = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map(s => s.trim())
+  : undefined; // undefined = allow all in dev
+
+app.use(cors({
+  origin: ALLOWED_ORIGINS || true,
+  credentials: true,
+}));
 
 app.use("/api", router);
 
@@ -70,13 +90,12 @@ if (process.env.NODE_ENV === "production") {
   }
 }
 
-// Global error handler — catches all unhandled errors from async routes
+// Global error handler
 const globalErrorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   const status = (err as any)?.status ?? (err as any)?.statusCode ?? 500;
   const message = status < 500 ? err.message : "Internal server error";
   if (status >= 500) {
-    const { logger: appLogger } = require("./lib/logger");
-    appLogger.error({ err }, "Unhandled route error");
+    logger.error({ err }, "Unhandled route error");
   }
   if (!res.headersSent) res.status(status).json({ error: message });
 };
