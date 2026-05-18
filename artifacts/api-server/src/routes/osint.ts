@@ -152,9 +152,6 @@ function injectDeveloperCredit(data: Record<string, unknown>): Record<string, un
   return processed;
 }
 
-// Require auth for API list as well, to be completely secure and authenticated
-router.use(requireUserAuth);
-
 router.get("/osint/apis", async (req, res) => {
   const apis = await db.select().from(osintApis).where(eq(osintApis.isActive, true));
   const mapped = apis.map(a => ({
@@ -166,7 +163,7 @@ router.get("/osint/apis", async (req, res) => {
   res.json(mapped);
 });
 
-router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
+router.post("/osint/lookup", requireUserAuth, lookupRateLimit, async (req, res) => {
   const payload = (req as any).userPayload;
   const sessionId = payload?.sessionId;
   const { slug, query: rawQuery } = req.body as { slug: string; query: string };
@@ -517,7 +514,7 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
   }
 });
 
-router.get("/osint/history", async (req, res) => {
+router.get("/osint/history", requireUserAuth, async (req, res) => {
   const payload = (req as any).userPayload;
   const sessionId = payload?.sessionId;
   
