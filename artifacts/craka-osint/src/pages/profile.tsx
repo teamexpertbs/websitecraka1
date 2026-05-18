@@ -291,7 +291,7 @@ export default function Profile() {
             <CardHeader className="pb-3 border-b border-border">
               <CardTitle className="text-base flex items-center gap-2">
                 <Users className="w-4 h-4 text-green-400" />
-                Friend ka Referral Code Apply Karo
+                Enter Referral Code 
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4">
@@ -375,14 +375,14 @@ export default function Profile() {
               <CardContent className="p-4 flex items-center gap-3">
                 <Gift className="w-5 h-5 text-green-400" />
                 <div>
-                  <p className="text-sm font-medium text-green-400">Refer & Earn</p>
-                  <p className="text-[10px] text-muted-foreground">Invite friends for credits</p>
+                  <p className="text-sm font-medium text-green-400">Refer</p>
+                  <p className="text-[10px] text-muted-foreground">Invite friends </p>
                 </div>
               </CardContent>
             </Card>
           </Link>
           <Link href="/premium">
-            <Card className="border-yellow-400/20 bg-yellow-400/5 hover:bg-yellow-400/10 cursor-pointer transition-colors">
+            <Card className="border-yellow-500/20 bg-yellow-500/5 hover:bg-yellow-500/10 cursor-pointer transition-colors">
               <CardContent className="p-4 flex items-center gap-3">
                 <Crown className="w-5 h-5 text-yellow-400" />
                 <div>
