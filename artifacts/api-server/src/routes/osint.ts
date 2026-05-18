@@ -7,6 +7,7 @@ import { logTokenTxn } from "../lib/tokenLog";
 import { createRateLimiter } from "../lib/rateLimit";
 import { lookupIndiaPhone } from "../lib/indiaPhoneLookup";
 import { requireUserAuth } from "../lib/userAuth";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -80,7 +81,7 @@ async function updateBrokenApis() {
 
 seedDefaultApis()
   .then(() => updateBrokenApis())
-  .catch(console.error);
+  .catch((err) => logger.error({ err }, "Failed to seed/update OSINT APIs"));
 
 function fetchUrl(url: string): Promise<{ data: Record<string, unknown>; statusCode: number }> {
   return new Promise((resolve, reject) => {
@@ -269,7 +270,7 @@ router.post("/osint/lookup", lookupRateLimit, async (req, res) => {
   if (slug === "dl") {
     // Parse DL number: State(2) + RTO(2-3) + Year(4) + Serial(4-7)
     const dlRaw = query.toUpperCase().replace(/[\s\-]/g, "");
-    const dlMatch = dlRaw.match(/^([A-Z]{2})(\\d{2})(\\d{4})(\\d{4,7})$/);
+    const dlMatch = dlRaw.match(/^([A-Z]{2})(\d{2})(\d{4})(\d{4,7})$/);
     const stateMap: Record<string, string> = {
       "AP":"Andhra Pradesh","AR":"Arunachal Pradesh","AS":"Assam","BR":"Bihar","CG":"Chhattisgarh",
       "GA":"Goa","GJ":"Gujarat","HR":"Haryana","HP":"Himachal Pradesh","JK":"Jammu & Kashmir",
