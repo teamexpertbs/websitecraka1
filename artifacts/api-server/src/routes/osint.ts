@@ -6,7 +6,7 @@ import http from "http";
 import { logTokenTxn } from "../lib/tokenLog";
 import { createRateLimiter } from "../lib/rateLimit";
 import { lookupIndiaPhone } from "../lib/indiaPhoneLookup";
-import { requireUserAuth } from "../lib/userAuth";
+import { requireUserAuth, userAuthMiddleware } from "../lib/userAuth";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -163,9 +163,10 @@ router.get("/osint/apis", async (req, res) => {
   res.json(mapped);
 });
 
-router.post("/osint/lookup", requireUserAuth, lookupRateLimit, async (req, res) => {
+router.post("/osint/lookup", userAuthMiddleware, lookupRateLimit, async (req, res) => {
   const payload = (req as any).userPayload;
-  const sessionId = payload?.sessionId;
+  // sessionId from JWT payload (logged-in users) OR from body (anonymous/session users)
+  const sessionId = payload?.sessionId ?? (req.body as any)?.sessionId;
   const { slug, query: rawQuery } = req.body as { slug: string; query: string };
   
   if (!slug || !rawQuery || !sessionId) {
