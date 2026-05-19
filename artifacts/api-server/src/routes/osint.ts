@@ -13,7 +13,7 @@ const router = Router();
 
 const DEVELOPER_CREDIT = "@DM_CRAKA_OWNER_BOT";
 const DEFAULT_CACHE_TTL_SECONDS = 1800; // 30 minutes
-const FREE_PLAN_TOKENS = 10;
+const FREE_PLAN_TOKENS = 2;
 
 // Per-session rate limit on lookups: 10 requests / minute
 const lookupRateLimit = createRateLimiter({
