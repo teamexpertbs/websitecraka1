@@ -33,7 +33,7 @@ function AdminLayout({ children, minimal }: { children: React.ReactNode; minimal
               <Shield className="w-4 h-4 text-destructive" />
             </div>
             <span className="font-mono font-bold text-sm tracking-widest text-destructive">CRAKA</span>
-            <span className="font-mono text-xs text-muted-foreground tracking-widest">/ ADMIN</span>
+            <span className="font-mono text-xs text-muted-foreground tracking-widest hidden sm:inline">/ ADMIN</span>
           </div>
           {!minimal && token && (
             <button
@@ -46,7 +46,7 @@ function AdminLayout({ children, minimal }: { children: React.ReactNode; minimal
           )}
         </div>
       </header>
-      <main className="flex-1 px-4 py-6 max-w-7xl mx-auto w-full">
+      <main className="flex-1 px-3 sm:px-4 py-4 sm:py-6 max-w-7xl mx-auto w-full">
         {children}
       </main>
       <footer className="border-t border-border/40 py-3 text-center text-[10px] font-mono text-muted-foreground/50 tracking-widest">
@@ -608,7 +608,7 @@ function AdminDashboard() {
         </header>
 
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <Card className="bg-card border-border">
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
@@ -697,7 +697,7 @@ function AdminDashboard() {
           </CardHeader>
           {usersExpanded && (
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
@@ -848,6 +848,112 @@ function AdminDashboard() {
               </TableBody>
             </Table>
             </div>
+            {/* MOBILE CARDS */}
+            <div className="md:hidden divide-y divide-border">
+              {(() => {
+                const q = userSearch.toLowerCase();
+                const filtered = q ? users.filter(u =>
+                  (u.email || "").toLowerCase().includes(q) ||
+                  (u.referralCode || "").toLowerCase().includes(q) ||
+                  (u.displayName || "").toLowerCase().includes(q) ||
+                  (u.premiumPlan || "").toLowerCase().includes(q)
+                ) : users;
+                if (filtered.length === 0) return (
+                  <div className="text-center text-sm text-muted-foreground py-6">
+                    {usersError || (q ? "No users match your search." : "No users yet.")}
+                  </div>
+                );
+                return filtered.map((user) => (
+                  <div key={user.referralCode} className={`p-3 space-y-2 ${user.isBanned ? "bg-destructive/5" : ""}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono text-sm font-bold text-foreground">{user.referralCode}</p>
+                        {user.email && <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>}
+                        {user.displayName && <p className="text-[10px] text-primary/70">{user.displayName}</p>}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {user.isBanned ? (
+                          <Badge variant="outline" className="border-red-500 text-red-400 bg-red-500/10 text-[10px]">BANNED</Badge>
+                        ) : user.isPremium ? (
+                          <Badge variant="outline" className="border-emerald-500 text-emerald-400 bg-emerald-500/10 text-[10px]">PREMIUM</Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-zinc-600 text-muted-foreground text-[10px]">FREE</Badge>
+                        )}
+                        {user.isBanned && user.banReason && (
+                          <span className="text-[9px] text-red-400/70">{user.banReason}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                      <div><span className="text-muted-foreground">Plan: </span>{user.premiumPlan || "—"}</div>
+                      <div><span className="text-muted-foreground">Credits: </span><span className="font-mono font-bold text-primary">{user.creditsEarned}</span></div>
+                      <div><span className="text-muted-foreground">Referrals: </span>{user.totalReferrals}</div>
+                      <div><span className="text-muted-foreground">Joined: </span>{new Date(user.createdAt).toLocaleDateString()}</div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1.5 border-t border-border/50">
+                      {user.isPremium ? (
+                        <Button variant="outline" size="sm" onClick={() => handleRevokePremium(user.referralCode)} className="h-7 text-xs px-2">Revoke</Button>
+                      ) : (
+                        <Button variant="secondary" size="sm" onClick={() => { setGrantCode(user.referralCode); setGrantPlan("Basic"); }} className="h-7 text-xs px-2">
+                          <Crown className="w-3 h-3 mr-1" />Grant
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => setTokenAdjustCode(user.referralCode)} className="h-7 text-xs px-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-400/10" title="Adjust tokens">
+                        <Coins className="w-3 h-3" />
+                      </Button>
+                      {user.isBanned ? (
+                        <Button variant="ghost" size="sm" onClick={() => handleUnbanUser(user.referralCode)} className="h-7 text-xs px-2 text-emerald-400 hover:bg-emerald-400/10">
+                          <CheckCircle className="w-3 h-3 mr-1" />Unban
+                        </Button>
+                      ) : (
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-7 text-xs px-2 text-destructive hover:bg-destructive/10">
+                              <Ban className="w-3 h-3 mr-1" />Ban
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="bg-card border-border max-w-[95vw] sm:max-w-md">
+                            <DialogHeader>
+                              <DialogTitle className="text-destructive flex items-center gap-2"><Ban className="w-4 h-4" />Ban — {user.referralCode}</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-3 py-2">
+                              <Label className="text-xs font-mono text-muted-foreground">Ban Reason (optional)</Label>
+                              <Input placeholder="e.g. Spam, abuse..." value={banningCode === user.referralCode ? banReason : ""} onChange={e => { setBanningCode(user.referralCode); setBanReason(e.target.value); }} className="bg-muted/50 border-border" />
+                            </div>
+                            <DialogFooter>
+                              <Button variant="destructive" onClick={() => { handleBanUser(user.referralCode, banningCode === user.referralCode ? banReason : ""); setBanReason(""); setBanningCode(null); }}>
+                                <Ban className="w-4 h-4 mr-2" />Confirm Ban
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      )}
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 text-xs px-2 text-red-600 hover:bg-red-600/10" title="Delete permanently">
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-card border-border max-w-[95vw] sm:max-w-md">
+                          <DialogHeader>
+                            <DialogTitle className="text-destructive flex items-center gap-2"><Trash2 className="w-4 h-4" />Delete — {user.referralCode}</DialogTitle>
+                          </DialogHeader>
+                          <div className="py-2 space-y-2">
+                            <p className="text-sm text-muted-foreground">This will <span className="text-destructive font-semibold">permanently delete</span> the user and all their data.</p>
+                            <p className="text-xs font-mono text-yellow-400 bg-yellow-400/10 border border-yellow-400/30 rounded px-3 py-2">This action cannot be undone.</p>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="destructive" onClick={() => handleDeleteUser(user.referralCode)}>
+                              <Trash2 className="w-4 h-4 mr-2" />Delete Permanently
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
           </CardContent>
           )}
         </Card>
@@ -930,8 +1036,10 @@ function AdminDashboard() {
               </div>
             </div>
             {couponList.length > 0 && (
-              <div className="mt-4 border-t border-purple-500/20 pt-4 overflow-x-auto">
+              <div className="mt-4 border-t border-purple-500/20 pt-4">
                 <p className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-3">All Coupons</p>
+                {/* DESKTOP */}
+                <div className="hidden md:block overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
@@ -969,6 +1077,33 @@ function AdminDashboard() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
+                {/* MOBILE CARDS */}
+                <div className="md:hidden space-y-2">
+                  {couponList.map(c => (
+                    <div key={c.code} className="rounded-lg border border-border bg-card/60 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono font-bold text-purple-400 text-sm">{c.code}</span>
+                        <Badge variant="outline" className={c.isActive ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10 text-[10px]" : "border-zinc-600 text-muted-foreground text-[10px]"}>
+                          {c.isActive ? "ACTIVE" : "OFF"}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                        <div><span className="text-muted-foreground">Credits: </span><span className="font-mono font-bold text-primary">+{c.credits}</span></div>
+                        <div><span className="text-muted-foreground">Uses: </span>{c.usedCount ?? 0}/{c.maxUses}</div>
+                        <div><span className="text-muted-foreground">Expires: </span>{c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : "Never"}</div>
+                      </div>
+                      <div className="flex gap-1.5 pt-1 border-t border-border/50">
+                        <Button variant="outline" size="sm" onClick={() => handleToggleCoupon(c.code)} className="h-7 text-xs px-2">
+                          {c.isActive ? "Disable" : "Enable"}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteCoupon(c.code)} className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </CardContent>
@@ -1121,7 +1256,8 @@ function AdminDashboard() {
           <CardHeader className="bg-muted/40 border-b border-border">
             <CardTitle className="text-lg">Registered Vectors</CardTitle>
           </CardHeader>
-          <div className="overflow-x-auto">
+          {/* DESKTOP */}
+          <div className="hidden md:block overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
@@ -1191,6 +1327,55 @@ function AdminDashboard() {
             </TableBody>
           </Table>
           </div>
+          {/* MOBILE CARDS */}
+          <div className="md:hidden divide-y divide-border">
+            {apis.length === 0 ? (
+              <div className="p-6 text-center text-sm text-muted-foreground">No vectors registered yet.</div>
+            ) : apis.map(api => (
+              <div key={api.id} className="p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-foreground text-sm truncate">{api.name}</p>
+                    <p className="font-mono text-[10px] text-secondary">{api.slug}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${api.isActive ? "bg-green-500/10 text-green-400 border-green-500/30" : "bg-red-500/10 text-red-400 border-red-500/30"}`}>
+                      {api.isActive ? "ON" : "OFF"}
+                    </span>
+                    <button
+                      onClick={() => handleToggleActive(api.slug, api.isActive)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${api.isActive ? "bg-green-500" : "bg-zinc-600"}`}
+                    >
+                      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${api.isActive ? "translate-x-6" : "translate-x-1"}`} />
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                  <div><span className="text-muted-foreground">Category: </span>
+                    <Badge variant="outline" className="border-primary/30 text-primary/80 text-[10px]">{api.category}</Badge>
+                  </div>
+                  <div><span className="text-muted-foreground">Credits: </span><span className="font-mono font-bold">{api.credits}</span></div>
+                </div>
+                <div className="flex gap-1.5 pt-1 border-t border-border/50">
+                  <ApiFormDialog
+                    mode="edit"
+                    initialData={api}
+                    onSubmit={(data) => {
+                      updateApiMutation.mutate({ slug: api.slug, data }, {
+                        onSuccess: () => {
+                          toast({ title: "Vector Updated", description: "API endpoint modified successfully." });
+                          queryClient.invalidateQueries({ queryKey: ["/api/admin/apis"] });
+                        }
+                      });
+                    }}
+                  />
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(api.slug)} className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </Card>
         
         <Card className="bg-card border-border overflow-hidden">
@@ -1208,7 +1393,9 @@ function AdminDashboard() {
             {healthError ? (
               <div className="p-4 text-destructive text-sm">{healthError}</div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              {/* DESKTOP */}
+              <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
@@ -1276,6 +1463,39 @@ function AdminDashboard() {
                 </TableBody>
               </Table>
               </div>
+              {/* MOBILE CARDS */}
+              <div className="md:hidden divide-y divide-border">
+                {apiHealth.length === 0 && !healthLoading ? (
+                  <div className="p-6 text-center text-sm text-muted-foreground">No data yet.</div>
+                ) : apiHealth.map((row) => {
+                  const tone = row.status === "healthy" ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
+                    : row.status === "degraded" ? "border-yellow-500/40 text-yellow-400 bg-yellow-500/10"
+                    : row.status === "down" ? "border-rose-500/40 text-rose-400 bg-rose-500/10"
+                    : "border-zinc-600/40 text-muted-foreground bg-zinc-700/20";
+                  return (
+                    <div key={row.slug} className="p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-foreground text-sm truncate">{row.name}</p>
+                          <p className="font-mono text-[10px] text-muted-foreground">{row.slug}</p>
+                        </div>
+                        <div className="flex gap-1 items-center shrink-0">
+                          <Badge variant="outline" className={`uppercase tracking-wider text-[10px] ${tone}`}>{row.status}</Badge>
+                          {!row.isActive && <Badge variant="outline" className="border-zinc-600 text-muted-foreground text-[10px]">OFF</Badge>}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                        <div><span className="text-muted-foreground">24h Total: </span><span className="font-mono">{row.total24h}</span></div>
+                        <div><span className="text-muted-foreground">24h %: </span><span className="font-mono">{row.successRate24h === null ? "—" : `${row.successRate24h}%`}</span></div>
+                        <div><span className="text-muted-foreground">All-time: </span><span className="font-mono">{row.totalRequests}</span></div>
+                        <div><span className="text-muted-foreground">TTL: </span><span className="font-mono">{Math.round((row.cacheTtlSeconds ?? 1800) / 60)}m</span></div>
+                        <div className="col-span-2"><span className="text-muted-foreground">Last Used: </span><span className="font-mono text-[10px]">{row.lastUsedAt ? new Date(row.lastUsedAt).toLocaleString() : "—"}</span></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -1288,7 +1508,9 @@ function AdminDashboard() {
             </Button>
           </CardHeader>
           {showRecentExecutions && (
-            <div className="overflow-x-auto">
+            <>
+            {/* DESKTOP */}
+            <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
@@ -1318,6 +1540,26 @@ function AdminDashboard() {
             </TableBody>
           </Table>
           </div>
+          {/* MOBILE CARDS */}
+          <div className="md:hidden divide-y divide-border">
+            {!historyData?.entries?.length ? (
+              <div className="p-6 text-center text-sm text-muted-foreground">No executions yet.</div>
+            ) : historyData.entries.map((entry: any) => (
+              <div key={entry.id} className="p-3 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-primary text-sm truncate">{entry.apiName}</span>
+                  {entry.success ? (
+                    <Badge variant="outline" className="text-success border-success/30 bg-success/10 text-[10px] shrink-0">OK</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-destructive border-destructive/30 bg-destructive/10 text-[10px] shrink-0">FAIL</Badge>
+                  )}
+                </div>
+                <p className="font-mono text-xs text-muted-foreground">{entry.queryVal}</p>
+                <p className="font-mono text-[10px] text-muted-foreground/60">{new Date(entry.createdAt).toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+          </>
           )}
         </Card>
 
@@ -1530,7 +1772,9 @@ function LoginLogsSection() {
           ) : logs.length === 0 && !loading ? (
             <div className="p-6 text-center text-muted-foreground text-sm">No login events recorded yet.</div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* DESKTOP */}
+            <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
@@ -1578,6 +1822,32 @@ function LoginLogsSection() {
               </TableBody>
             </Table>
             </div>
+            {/* MOBILE CARDS */}
+            <div className="md:hidden divide-y divide-border">
+              {logs.map((log) => (
+                <div key={log.id} className="p-3 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs text-foreground truncate">{log.email || "—"}</span>
+                    <div className="flex gap-1 items-center shrink-0">
+                      <Badge variant="outline" className={`text-[10px] uppercase ${log.method === "google" ? "border-blue-500/40 text-blue-400 bg-blue-500/10" : "border-purple-500/40 text-purple-400 bg-purple-500/10"}`}>
+                        {log.method}
+                      </Badge>
+                      {log.status === "success" ? (
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5 text-destructive" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-1"><Globe className="w-3 h-3" />{log.ipAddress || "—"}</div>
+                    <div className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(log.createdAt).toLocaleTimeString()}</div>
+                    <div className="col-span-2 truncate" title={log.userAgent}>{log.userAgent || "—"}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            </>
           )}
         </CardContent>
       )}
@@ -1737,7 +2007,7 @@ function ApiFormDialog({ mode, initialData, onSubmit }: { mode: 'create' | 'edit
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="bg-card border-border sm:max-w-[600px]">
+      <DialogContent className="bg-card border-border max-w-[95vw] sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle className="text-glow text-primary font-mono uppercase tracking-widest">
             {mode === 'create' ? "Register New Vector" : "Modify Vector Config"}
