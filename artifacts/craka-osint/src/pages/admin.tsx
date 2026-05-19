@@ -1254,7 +1254,23 @@ function AdminDashboard() {
 
         <Card className="bg-card border-border overflow-hidden">
           <CardHeader className="bg-muted/40 border-b border-border">
-            <CardTitle className="text-lg">Registered Vectors</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg">Registered Vectors</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1 font-mono">
+                  Naya API add karne ke liye "NEW VECTOR" button dabayein (upar, page ke header mein).<br className="hidden sm:inline" />
+                  URL mein <span className="text-primary font-bold">{"{query}"}</span> zaroor likhein — yeh user ki search se automatically replace ho jaata hai.<br className="hidden sm:inline" />
+                  Example: <span className="text-secondary font-mono text-[11px]">https://api.example.com/lookup?q={"{query}"}</span>
+                </p>
+              </div>
+              <div className="text-[10px] font-mono text-muted-foreground bg-muted/50 border border-border rounded-md px-2.5 py-2 shrink-0 space-y-0.5">
+                <div className="text-primary font-bold uppercase tracking-wider mb-1">Quick Guide</div>
+                <div>1. NEW VECTOR → form fill karein</div>
+                <div>2. URL mein <span className="text-primary">{"{query}"}</span> likhein</div>
+                <div>3. DEPLOY dabayein</div>
+                <div>4. API turant portal mein active!</div>
+              </div>
+            </div>
           </CardHeader>
           {/* DESKTOP */}
           <div className="hidden md:block overflow-x-auto">
@@ -2007,7 +2023,7 @@ function ApiFormDialog({ mode, initialData, onSubmit }: { mode: 'create' | 'edit
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="bg-card border-border max-w-[95vw] sm:max-w-[600px]">
+      <DialogContent className="bg-card border-border max-w-[95vw] sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-glow text-primary font-mono uppercase tracking-widest">
             {mode === 'create' ? "Register New Vector" : "Modify Vector Config"}
@@ -2025,7 +2041,16 @@ function ApiFormDialog({ mode, initialData, onSubmit }: { mode: 'create' | 'edit
             </div>
             <div className="space-y-2 col-span-2">
               <Label className="font-mono text-xs text-muted-foreground">URL Endpoint</Label>
-              <Input value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} className="bg-muted/50 border-border font-mono text-sm" required />
+              <Input
+                value={formData.url}
+                onChange={e => setFormData({...formData, url: e.target.value})}
+                className="bg-muted/50 border-border font-mono text-sm"
+                placeholder="https://api.example.com/lookup?q={query}"
+                required
+              />
+              <p className="text-[11px] text-muted-foreground font-mono">
+                ⚠️ URL mein <span className="text-primary font-bold">{"{query}"}</span> zaroor likhein — yeh user ke search term se replace hoga.
+              </p>
             </div>
             <div className="space-y-2">
               <Label className="font-mono text-xs text-muted-foreground">Category</Label>
@@ -2045,7 +2070,7 @@ function ApiFormDialog({ mode, initialData, onSubmit }: { mode: 'create' | 'edit
             </div>
             <div className="space-y-2 col-span-2">
               <Label className="font-mono text-xs text-muted-foreground">Regex Pattern (optional)</Label>
-              <Input value={formData.pattern || ""} onChange={e => setFormData({...formData, pattern: e.target.value})} className="bg-muted/50 border-border font-mono text-sm" />
+              <Input value={formData.pattern || ""} onChange={e => setFormData({...formData, pattern: e.target.value})} className="bg-muted/50 border-border font-mono text-sm" placeholder="^[6-9]\d{9}$ (leave blank for no validation)" />
             </div>
             <div className="space-y-2 col-span-2">
               <Label className="font-mono text-xs text-muted-foreground">
@@ -2060,6 +2085,25 @@ function ApiFormDialog({ mode, initialData, onSubmit }: { mode: 'create' | 'edit
                 max="86400"
               />
             </div>
+            {mode === 'edit' && (
+              <div className="col-span-2 flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border">
+                <div>
+                  <p className="text-sm font-mono font-semibold text-foreground">API Status</p>
+                  <p className="text-[11px] text-muted-foreground">Active hoga toh users portal mein use kar sakte hain</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData({...formData, isActive: !formData.isActive})}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                    formData.isActive ? "bg-green-500" : "bg-zinc-600"
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                    formData.isActive ? "translate-x-6" : "translate-x-1"
+                  }`} />
+                </button>
+              </div>
+            )}
           </div>
           <DialogFooter className="pt-4">
             <Button type="button" variant="outline" onClick={() => setOpen(false)} className="border-border">Cancel</Button>
