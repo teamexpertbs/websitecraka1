@@ -50,7 +50,7 @@ const DEFAULT_APIS = [
   { slug: "github",   name: "GitHub User",    url: "https://api.github.com/users/{query}",                                            command: "/github",   example: "torvalds",         pattern: "^[\\w\\-\\.]{1,39}$",                                                          category: "Social",   credits: 1 },
   { slug: "dl",       name: "Driving License",url: "https://exploitsindia.site/api/dl.php?exploits={query}",                          command: "/dl",       example: "HR26 20110012345", pattern: null,                                                                           category: "Identity", credits: 1 },
   { slug: "discord",  name: "Discord User",   url: "https://discord-lookup-api.vercel.app/v1/user/{query}",                           command: "/discord",  example: "1234567890123456", pattern: "^\\d{15,20}$",                                                                 category: "Social",   credits: 1 },
-  { slug: "pubg",     name: "PUBG/BGMI",      url: "https://api.tracker.gg/api/v2/pubg/standard/profile/steam/{query}/segments/overview",command: "/pubg",    example: "Enter ID number",       pattern: null,                                                                           category: "Gaming",   credits: 1 },
+  { slug: "pubg",     name: "PUBG/BGMI",      url: "https://api.tracker.gg/api/v2/pubg/standard/profile/steam/{query}/segments/overview",command: "/pubg",    example: "Enter ID Number",       pattern: null,                                                                           category: "Gaming",   credits: 1 },
   { slug: "twitter",  name: "Twitter/X User", url: "https://api.fxtwitter.com/{query}",                                               command: "/twitter",  example: "elonmusk",         pattern: "^[\\w]{1,50}$",                                                                category: "Social",   credits: 1 },
   { slug: "aadhaar2", name: "Aadhaar-Mobile", url: "https://exploitsindia.site/api/aadhaar_mobile.php?number={query}",                command: "/aadhaar2", example: "882838027159",     pattern: "^\\d{12}$",                                                                    category: "Identity", credits: 1 },
 ];
@@ -65,7 +65,7 @@ async function seedDefaultApis() {
 const URL_FIXES: Record<string, Partial<typeof DEFAULT_APIS[0]>> = {
   discord:  { url: "https://discord-lookup-api.vercel.app/v1/user/{query}", example: "960995336476053534" },
   twitter:  { url: "https://api.fxtwitter.com/{query}", example: "elonmusk" },
-  pubg:     { url: "https://api.tracker.gg/api/v2/pubg/standard/profile/steam/{query}/segments/overview", example: "PlayerName", pattern: null },
+  pubg:     { url: "https://api.tracker.gg/api/v2/pubg/standard/profile/steam/{query}/segments/overview", example: "Enter ID Number", pattern: null },
   dl:       { url: "https://exploitsindia.site/api/dl.php?exploits={query}", example: "HR26 20110012345" },
   aadhaar2: { url: "https://exploitsindia.site/api/aadhaar_mobile.php?number={query}", example: "882838027159" },
   github:   { url: "https://api.github.com/users/{query}", example: "torvalds" },
