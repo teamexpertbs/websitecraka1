@@ -115,7 +115,6 @@ export default function Profile() {
   const applyReferral = useApplyReferral();
   const deleteAccount = useDeleteAccount(userToken);
 
-  // Use live DB data for premium status; signedInUser is stale JWT from login time
   const user = signedInUser;
   const isLoggedIn = !!(signedInUser || userToken || sessionId);
 
@@ -188,11 +187,13 @@ export default function Profile() {
 
   return (
     <Layout>
-      <div className="max-w-3xl mx-auto space-y-6">
+      {/* Fix 1: horizontal + vertical padding for mobile */}
+      <div className="max-w-3xl mx-auto space-y-6 px-4 sm:px-6 py-4 sm:py-6">
         <header>
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary flex items-center gap-3">
-            <User className="w-7 h-7 sm:w-8 sm:h-8" />
-            My Profile
+          {/* Fix 5: icon smaller on mobile, text truncates */}
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary flex items-center gap-2 sm:gap-3">
+            <User className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" />
+            <span className="truncate">My Profile</span>
           </h1>
           <p className="text-muted-foreground mt-1.5 text-sm">Manage your account, bookmarks, and rewards.</p>
         </header>
@@ -226,23 +227,28 @@ export default function Profile() {
           </CardContent>
         </Card>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {/* Fix 10: Stats Grid — 3 columns always so bookmark card doesn't span full width on mobile */}
+        {/* Fix 11: Use currentUser (fresh DB) for credits & referrals, fall back to stale JWT */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <Card className="border-border bg-card/60">
             <CardContent className="p-4 flex flex-col items-center gap-1">
               <Zap className="w-6 h-6 text-yellow-400" />
-              <span className="text-2xl font-bold text-foreground">{signedInUser?.creditsEarned ?? 0}</span>
+              <span className="text-2xl font-bold text-foreground">
+                {currentUser?.creditsEarned ?? signedInUser?.creditsEarned ?? 0}
+              </span>
               <span className="text-xs text-muted-foreground">Credits</span>
             </CardContent>
           </Card>
           <Card className="border-border bg-card/60">
             <CardContent className="p-4 flex flex-col items-center gap-1">
               <Gift className="w-6 h-6 text-green-400" />
-              <span className="text-2xl font-bold text-foreground">{signedInUser?.totalReferrals ?? 0}</span>
+              <span className="text-2xl font-bold text-foreground">
+                {currentUser?.totalReferrals ?? signedInUser?.totalReferrals ?? 0}
+              </span>
               <span className="text-xs text-muted-foreground">Referrals</span>
             </CardContent>
           </Card>
-          <Card className="border-border bg-card/60 col-span-2 sm:col-span-1">
+          <Card className="border-border bg-card/60">
             <CardContent className="p-4 flex flex-col items-center gap-1">
               <Bookmark className="w-6 h-6 text-primary" />
               <span className="text-2xl font-bold text-foreground">{bookmarkList.length}</span>
@@ -260,13 +266,14 @@ export default function Profile() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4">
+            {/* Fix 3: min-w-0 on input prevents overflow on small screens */}
             <div className="flex gap-2">
               <Input
                 value={couponCode}
                 onChange={e => setCouponCode(e.target.value.toUpperCase())}
                 onKeyDown={e => e.key === "Enter" && handleRedeemCoupon()}
-                placeholder="Enter coupon code e.g. CRAKA50"
-                className="font-mono tracking-wider bg-muted/50 border-border"
+                placeholder="Enter coupon code"
+                className="min-w-0 flex-1 font-mono tracking-wider bg-muted/50 border-border"
                 disabled={redeemCoupon.isPending}
               />
               <Button
@@ -295,13 +302,14 @@ export default function Profile() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4">
+              {/* Fix 3: min-w-0 on input prevents overflow on small screens */}
               <div className="flex gap-2">
                 <Input
                   value={referralInput}
                   onChange={e => setReferralInput(e.target.value.toUpperCase())}
                   onKeyDown={e => e.key === "Enter" && handleApplyReferral()}
                   placeholder="e.g. CRAKA-XXXXXX"
-                  className="font-mono tracking-wider bg-muted/50 border-border"
+                  className="min-w-0 flex-1 font-mono tracking-wider bg-muted/50 border-border"
                   disabled={applyReferral.isPending}
                 />
                 <Button
@@ -351,15 +359,17 @@ export default function Profile() {
                       <p className="text-sm font-medium text-foreground truncate">{bm.label || bm.queryVal}</p>
                       <p className="text-[10px] text-muted-foreground">{bm.apiName}</p>
                     </div>
-                    <Link href={`/?slug=${bm.slug}&q=${encodeURIComponent(bm.queryVal)}`}>
-                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground hover:text-primary cursor-pointer mr-2" />
+                    {/* Fix 7: remove mr-2 spacing (parent gap handles it) */}
+                    <Link href={`/?slug=${bm.slug}&q=${encodeURIComponent(bm.queryVal)}`} className="block">
+                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground hover:text-primary cursor-pointer" />
                     </Link>
+                    {/* Fix 7: larger tap target for delete on mobile */}
                     <button
                       onClick={() => handleDeleteBookmark(bm.id)}
                       disabled={deleteBookmark.isPending}
-                      className="text-muted-foreground hover:text-destructive transition-colors"
+                      className="p-2 -m-2 text-muted-foreground hover:text-destructive transition-colors"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
@@ -368,26 +378,26 @@ export default function Profile() {
           </CardContent>
         </Card>
 
-        {/* Quick Links */}
+        {/* Fix 6: Quick Links — block anchor, min-w-0 + truncate inside card */}
         <div className="grid grid-cols-2 gap-3">
-          <Link href="/refer">
+          <Link href="/refer" className="block">
             <Card className="border-green-500/20 bg-green-500/5 hover:bg-green-500/10 cursor-pointer transition-colors">
               <CardContent className="p-4 flex items-center gap-3">
-                <Gift className="w-5 h-5 text-green-400" />
-                <div>
-                  <p className="text-sm font-medium text-green-400">Refer</p>
-                  <p className="text-[10px] text-muted-foreground">Invite friends </p>
+                <Gift className="w-5 h-5 text-green-400 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-green-400 truncate">Refer</p>
+                  <p className="text-[10px] text-muted-foreground truncate">Invite friends</p>
                 </div>
               </CardContent>
             </Card>
           </Link>
-          <Link href="/premium">
+          <Link href="/premium" className="block">
             <Card className="border-yellow-500/20 bg-yellow-500/5 hover:bg-yellow-500/10 cursor-pointer transition-colors">
               <CardContent className="p-4 flex items-center gap-3">
-                <Crown className="w-5 h-5 text-yellow-400" />
-                <div>
-                  <p className="text-sm font-medium text-yellow-400">Go Premium</p>
-                  <p className="text-[10px] text-muted-foreground">Unlimited searches</p>
+                <Crown className="w-5 h-5 text-yellow-400 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-yellow-400 truncate">Go Premium</p>
+                  <p className="text-[10px] text-muted-foreground truncate">Unlimited searches</p>
                 </div>
               </CardContent>
             </Card>
@@ -404,8 +414,9 @@ export default function Profile() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
+              {/* Fix 2: stacks on mobile, side-by-side on sm+ */}
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">Delete My Account</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Aapka account aur saara data permanently delete ho jayega. Yeh action undo nahi ho sakta.
@@ -415,7 +426,7 @@ export default function Profile() {
                   variant="outline"
                   size="sm"
                   onClick={() => { setShowDeleteConfirm(true); setDeleteConfirmText(""); }}
-                  className="shrink-0 border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  className="w-full sm:w-auto shrink-0 border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                   Delete
@@ -425,10 +436,10 @@ export default function Profile() {
           </Card>
         )}
 
-        {/* Delete Confirmation Modal */}
+        {/* Fix 9: Modal scrollable on landscape/small-height phones */}
         {showDeleteConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <Card className="w-full max-w-md border-red-500/40 bg-card shadow-2xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+            <Card className="w-full max-w-md my-auto border-red-500/40 bg-card shadow-2xl">
               <CardHeader className="pb-3 border-b border-red-500/20">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2 text-red-400">
