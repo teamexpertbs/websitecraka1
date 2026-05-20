@@ -235,7 +235,7 @@ router.delete("/admin/users/:code", adminAuthMiddleware, async (req, res) => {
 // Cleanup all ghost users (non-premium, <=5 credits, 0 referrals)
 router.post("/admin/cleanup-ghosts", adminAuthMiddleware, async (req, res) => {
   const ghosts = await db.select().from(crakaUsers).where(
-    sql`${crakaUsers.isPremium} = false AND ${crakaUsers.creditsEarned} <= 5 AND ${crakaUsers.totalReferrals} = 0`
+    sql`"is_premium" = false AND "credits_earned" <= 5 AND "total_referrals" = 0`
   );
   for (const ghost of ghosts) {
     await db.delete(crakaUsers).where(eq(crakaUsers.id, ghost.id));
