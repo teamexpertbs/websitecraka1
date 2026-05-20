@@ -12,7 +12,12 @@ if (!dbUrl) {
   );
 }
 
-export const pool = new Pool({ connectionString: dbUrl });
+const isLocal = dbUrl.includes("localhost") || dbUrl.includes("127.0.0.1");
+
+export const pool = new Pool({
+  connectionString: dbUrl,
+  ssl: isLocal ? false : { rejectUnauthorized: false },
+});
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";
