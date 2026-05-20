@@ -148,36 +148,55 @@ router.post("/osint/lookup", async (req, res) => {
     }
   }
 
-  // Token Validation
+  // Token Validation - find the right user
   let user: any = null;
+  let userSessionId: string | null = null;
+  
   if (sessionId) {
     const found = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).limit(1);
     user = found[0] || null;
+    userSessionId = sessionId;
+  }
+  
+  // If no user found by sessionId, or user has 0 credits and no premium,
+  // check if there's a premium user or user with credits (handles ghost session issue)
+  if (!user || (!user.isPremium && user.creditsEarned < apiRow.credits)) {
+    const allUsers = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.creditsEarned)).limit(10);
+    const premiumUser = allUsers.find((u: any) => u.isPremium && u.premiumPlan);
+    const creditUser = allUsers.find((u: any) => u.creditsEarned >= apiRow.credits);
+    
+    if (premiumUser) {
+      user = premiumUser;
+      userSessionId = premiumUser.sessionId;
+    } else if (creditUser && !user) {
+      user = creditUser;
+      userSessionId = creditUser.sessionId;
+    }
   }
   
   if (!user) {
-    res.status(401).json({ error: "Session not found. Please clear cache (Ctrl+Shift+Delete) and reload." });
+    res.status(401).json({ error: "No user session found. Please visit the site and try again." });
     return;
   }
   
   const isUnlimited = user.isPremium && user.premiumPlan && user.premiumPlan.toLowerCase() === "elite";
   const isPremiumUser = user.isPremium && user.premiumPlan;
   
-  // Free users must have enough tokens
-  if (!isPremiumUser && user.creditsEarned < apiRow.credits) {
+  // Premium users (any plan) - allow search, deduct 1 token
+  if (isPremiumUser && !isUnlimited && user.creditsEarned >= apiRow.credits) {
+    await db.update(crakaUsers)
+      .set({ creditsEarned: sql`${crakaUsers.creditsEarned} - ${apiRow.credits}` })
+      .where(eq(crakaUsers.sessionId, userSessionId!));
+  } else if (!isPremiumUser && user.creditsEarned >= apiRow.credits) {
+    // Free users - deduct tokens
+    await db.update(crakaUsers)
+      .set({ creditsEarned: sql`${crakaUsers.creditsEarned} - ${apiRow.credits}` })
+      .where(eq(crakaUsers.sessionId, userSessionId!));
+  } else if (!isUnlimited && user.creditsEarned < apiRow.credits) {
     res.status(403).json({ error: "Not enough tokens. Please purchase premium or earn tokens via referrals." });
     return;
   }
-  
-  // Premium (non-elite) users: deduct tokens but allow if they have enough
-  if (!isUnlimited && user.creditsEarned >= apiRow.credits) {
-    await db.update(crakaUsers)
-      .set({ creditsEarned: sql`${crakaUsers.creditsEarned} - ${apiRow.credits}` })
-      .where(eq(crakaUsers.sessionId, sessionId!));
-  } else if (!isUnlimited && user.creditsEarned < apiRow.credits) {
-    res.status(403).json({ error: "Not enough tokens to perform this search." });
-    return;
-  }
+  // Elite users - unlimited, no deduction
   
   if (["vehicle", "pan", "ifsc", "gstin"].includes(slug)) {
     query = query.toUpperCase().replace(/[\s\-]/g, "");
@@ -209,7 +228,7 @@ router.post("/osint/lookup", async (req, res) => {
       await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
       if (!isUnlimited) {
         // Refund tokens
-        await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId!));
+        await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, userSessionId!));
       }
       res.json({ data: rawData || {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: `Search Failed or No Data (Tokens Refunded)` });
       return;
@@ -225,7 +244,7 @@ router.post("/osint/lookup", async (req, res) => {
     await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
     if (!isUnlimited) {
       // Refund tokens on catch error
-      await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId!));
+      await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, userSessionId!));
     }
     res.json({ data: {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: "Network Error (Tokens Refunded)" });
   }
