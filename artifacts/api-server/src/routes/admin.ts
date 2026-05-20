@@ -56,12 +56,6 @@ router.post("/admin/apis", adminAuthMiddleware, async (req, res) => {
     slug, name, url, command, example, pattern: pattern || null,
     category: category || "Miscellaneous", credits: credits ?? 1, isActive: isActive ?? true,
   }).returning();
-
-  if (!created) {
-    res.status(500).json({ error: "Failed to create API" });
-    return;
-  }
-
   res.status(201).json({
     id: created.id, slug: created.slug, name: created.name, url: created.url, command: created.command,
     example: created.example, pattern: created.pattern, category: created.category, credits: created.credits,
@@ -112,7 +106,7 @@ router.get("/admin/history", adminAuthMiddleware, async (req, res) => {
   
   res.json({
     entries: entries.map(e => ({ ...e, createdAt: e.createdAt.toISOString() })),
-    total: Number(totalResult[0]?.count ?? 0),
+    total: Number(totalResult[0].count),
     page,
     limit,
   });
@@ -146,12 +140,12 @@ router.get("/admin/stats", adminAuthMiddleware, async (req, res) => {
   const recentActivity = await db.select().from(osintHistory).orderBy(desc(osintHistory.createdAt)).limit(20);
   
   res.json({
-    totalLookups: Number(totalResult[0]?.count ?? 0),
-    successfulLookups: Number(successResult[0]?.count ?? 0),
-    failedLookups: Number(failedResult[0]?.count ?? 0),
-    activeApis: Number(activeApisResult[0]?.count ?? 0),
-    totalApis: Number(totalApisResult[0]?.count ?? 0),
-    cachedResults: Number(cacheResult[0]?.count ?? 0),
+    totalLookups: Number(totalResult[0].count),
+    successfulLookups: Number(successResult[0].count),
+    failedLookups: Number(failedResult[0].count),
+    activeApis: Number(activeApisResult[0].count),
+    totalApis: Number(totalApisResult[0].count),
+    cachedResults: Number(cacheResult[0].count),
     categoryBreakdown: categoryBreakdown.map(r => ({ category: r.category ?? "Unknown", count: Number(r.count) })),
     topApis: topApis.map(r => ({ apiName: r.apiName, count: Number(r.count) })),
     recentActivity: recentActivity.map(e => ({ ...e, createdAt: e.createdAt.toISOString() })),
@@ -224,7 +218,7 @@ router.get("/admin/users", adminAuthMiddleware, async (req, res) => {
 
 // Delete a specific user by referralCode
 router.delete("/admin/users/:code", adminAuthMiddleware, async (req, res) => {
-  const code = req.params.code.toUpperCase();
+  const code = String(req.params.code).toUpperCase();
   const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
   if (!user) {
     res.status(404).json({ error: "User not found" });
@@ -241,7 +235,7 @@ router.delete("/admin/users/:code", adminAuthMiddleware, async (req, res) => {
 // Cleanup all ghost users (non-premium, <=5 credits, 0 referrals)
 router.post("/admin/cleanup-ghosts", adminAuthMiddleware, async (req, res) => {
   const ghosts = await db.select().from(crakaUsers).where(
-    sql`\"is_premium\" = false AND \"credits_earned\" <= 5 AND \"total_referrals\" = 0`
+    sql`"is_premium" = false AND "credits_earned" = 5 AND "total_referrals" = 0`
   );
   for (const ghost of ghosts) {
     await db.delete(crakaUsers).where(eq(crakaUsers.id, ghost.id));
