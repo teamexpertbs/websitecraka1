@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { crakaUsers, crakaReferrals } from "@workspace/db";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { UserInitSchema, UserMeSchema, formatValidationError } from "../lib/validation";
 import { logger } from "../lib/logger";
 
@@ -109,6 +109,11 @@ router.post("/user/init", async (req, res): Promise<void> => {
         }).returning();
         user = inserted[0];
       }
+    }
+
+    if (!user) {
+      res.status(500).json({ error: "Failed to initialize user" });
+      return;
     }
 
     res.json({
