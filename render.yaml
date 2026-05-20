@@ -9,7 +9,6 @@ services:
     buildCommand: |
       npm install -g pnpm@10.26.1 &&
       pnpm install --no-frozen-lockfile &&
-      pnpm --filter @workspace/db run push-force &&
       pnpm --filter @workspace/craka-osint run build &&
       pnpm --filter @workspace/api-server run build
     startCommand: cd artifacts/api-server && pnpm run start
