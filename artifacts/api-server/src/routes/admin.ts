@@ -101,7 +101,7 @@ router.get("/admin/history", adminAuthMiddleware, async (req, res) => {
   
   const [entries, totalResult] = await Promise.all([
     db.select().from(osintHistory).orderBy(desc(osintHistory.createdAt)).limit(limit).offset(offset),
-    db.select({ count: sql<number>`count(*)` }).from(osintHistory),
+    db.select({ count: sql`count(*)` }).from(osintHistory),
   ]);
   
   res.json({
@@ -119,22 +119,22 @@ router.post("/admin/cache/clear", adminAuthMiddleware, async (req, res) => {
 
 router.get("/admin/stats", adminAuthMiddleware, async (req, res) => {
   const [totalResult, successResult, failedResult, activeApisResult, totalApisResult, cacheResult] = await Promise.all([
-    db.select({ count: sql<number>`count(*)` }).from(osintHistory),
-    db.select({ count: sql<number>`count(*)` }).from(osintHistory).where(eq(osintHistory.success, true)),
-    db.select({ count: sql<number>`count(*)` }).from(osintHistory).where(eq(osintHistory.success, false)),
-    db.select({ count: sql<number>`count(*)` }).from(osintApis).where(eq(osintApis.isActive, true)),
-    db.select({ count: sql<number>`count(*)` }).from(osintApis),
-    db.select({ count: sql<number>`count(*)` }).from(osintCache),
+    db.select({ count: sql`count(*)` }).from(osintHistory),
+    db.select({ count: sql`count(*)` }).from(osintHistory).where(eq(osintHistory.success, true)),
+    db.select({ count: sql`count(*)` }).from(osintHistory).where(eq(osintHistory.success, false)),
+    db.select({ count: sql`count(*)` }).from(osintApis).where(eq(osintApis.isActive, true)),
+    db.select({ count: sql`count(*)` }).from(osintApis),
+    db.select({ count: sql`count(*)` }).from(osintCache),
   ]);
   
   const categoryBreakdown = await db.select({
     category: osintApis.category,
-    count: sql<number>`count(${osintHistory.id})`,
+    count: sql`count(${osintHistory.id})`,
   }).from(osintHistory).leftJoin(osintApis, eq(osintHistory.slug, osintApis.slug)).groupBy(osintApis.category);
   
   const topApis = await db.select({
     apiName: osintHistory.apiName,
-    count: sql<number>`count(*)`,
+    count: sql`count(*)`,
   }).from(osintHistory).groupBy(osintHistory.apiName).orderBy(desc(sql`count(*)`)).limit(10);
   
   const recentActivity = await db.select().from(osintHistory).orderBy(desc(osintHistory.createdAt)).limit(20);
