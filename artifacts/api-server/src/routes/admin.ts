@@ -1,63 +1,15 @@
 import { Router } from "express";
-import { db, osintApis, osintHistory, osintCache, crakaUsers, loginLogs, broadcasts, coupons, couponUses, scheduledBroadcasts, crakaReferrals, deletedAccounts } from "@workspace/db";
-import { eq, sql, desc, gt, and, lte } from "drizzle-orm";
+import { db, osintApis, osintHistory, osintCache, crakaUsers } from "@workspace/db";
+import { eq, sql, desc } from "drizzle-orm";
 import { generateToken, adminAuthMiddleware, refreshTokenHandler } from "../lib/jwt";
 import { AdminLoginSchema, AdminCreateApiSchema, AdminGrantPremiumSchema, formatValidationError } from "../lib/validation";
-import { logTokenTxn } from "../lib/tokenLog";
-import { generateTotpSecret, verifyTotp, generateQrCodeDataUrl } from "../lib/totp";
 
 const router = Router();
 
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
 const ADMIN_PASS = process.env.ADMIN_PASS || "craka@admin123";
 
-// Brute force protection — in-memory per-IP tracker
-interface FailRecord { count: number; lockedUntil: number | null }
-const failedAttempts = new Map<string, FailRecord>();
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
-
-function getClientIp(req: any): string {
-  return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
-}
-function checkBruteForce(ip: string): { blocked: boolean; retryAfter?: number } {
-  const rec = failedAttempts.get(ip);
-  if (!rec) return { blocked: false };
-  if (rec.lockedUntil && Date.now() < rec.lockedUntil) {
-    return { blocked: true, retryAfter: Math.ceil((rec.lockedUntil - Date.now()) / 1000) };
-  }
-  if (rec.lockedUntil && Date.now() >= rec.lockedUntil) {
-    failedAttempts.delete(ip);
-  }
-  return { blocked: false };
-}
-function recordFailure(ip: string): void {
-  const rec = failedAttempts.get(ip) || { count: 0, lockedUntil: null };
-  rec.count += 1;
-  if (rec.count >= MAX_ATTEMPTS) rec.lockedUntil = Date.now() + LOCKOUT_MS;
-  failedAttempts.set(ip, rec);
-}
-function clearFailures(ip: string): void {
-  failedAttempts.delete(ip);
-}
-
-// In-memory TOTP secret store (persisted via env ADMIN_2FA_SECRET)
-function getAdmin2FaSecret(): string | null {
-  return process.env.ADMIN_2FA_SECRET || null;
-}
-
 router.post("/admin/login", async (req, res) => {
-  const ip = getClientIp(req);
-  const bruteCheck = checkBruteForce(ip);
-  if (bruteCheck.blocked) {
-    res.status(429).json({
-      success: false,
-      message: `Too many failed attempts. Try again in ${Math.ceil((bruteCheck.retryAfter ?? 0) / 60)} minutes.`,
-      retryAfter: bruteCheck.retryAfter,
-    });
-    return;
-  }
-
   const validation = AdminLoginSchema.safeParse(req.body);
   if (!validation.success) {
     res.status(400).json(formatValidationError(validation.error));
@@ -65,37 +17,20 @@ router.post("/admin/login", async (req, res) => {
   }
 
   const { username, password } = validation.data;
-  const totpToken: string | undefined = (req.body as any).totpToken;
+  const ADMIN_USER = process.env.ADMIN_USER || "admin";
+  const ADMIN_PASS = process.env.ADMIN_PASS || "craka@admin123";
 
-  if (username !== ADMIN_USER || password !== ADMIN_PASS) {
-    recordFailure(ip);
-    const rec = failedAttempts.get(ip);
-    const remaining = MAX_ATTEMPTS - (rec?.count ?? 0);
-    res.status(401).json({
-      success: false,
-      message: remaining > 0
-        ? `Invalid credentials. ${remaining} attempt${remaining !== 1 ? "s" : ""} remaining before lockout.`
-        : "Account locked for 15 minutes due to too many failed attempts.",
+  if (username === ADMIN_USER && password === ADMIN_PASS) {
+    const token = generateToken(username);
+    res.json({ 
+      success: true, 
+      token, 
+      expiresIn: "8h",
+      message: "Login successful" 
     });
-    return;
+  } else {
+    res.status(401).json({ success: false, message: "Invalid credentials" });
   }
-
-  const secret = getAdmin2FaSecret();
-  if (secret) {
-    if (!totpToken) {
-      res.status(200).json({ success: false, requires2FA: true, message: "2FA code required" });
-      return;
-    }
-    const valid = verifyTotp(secret, totpToken);
-    if (!valid) {
-      res.status(401).json({ success: false, message: "Invalid 2FA code. Make sure your device time is synced and try again." });
-      return;
-    }
-  }
-
-  clearFailures(ip);
-  const token = generateToken(username);
-  res.json({ success: true, token, expiresIn: "8h", message: "Login successful" });
 });
 
 router.post("/admin/refresh-token", refreshTokenHandler);
@@ -105,7 +40,6 @@ router.get("/admin/apis", adminAuthMiddleware, async (req, res) => {
   res.json(apis.map(a => ({
     id: a.id, slug: a.slug, name: a.name, url: a.url, command: a.command,
     example: a.example, pattern: a.pattern, category: a.category, credits: a.credits,
-    cacheTtlSeconds: a.cacheTtlSeconds,
     isActive: a.isActive, createdAt: a.createdAt.toISOString(),
   })));
 });
@@ -118,27 +52,20 @@ router.post("/admin/apis", adminAuthMiddleware, async (req, res) => {
   }
 
   const { slug, name, url, command, example, pattern, category, credits, isActive } = validation.data;
-  const cacheTtlSecondsRaw = (req.body as any)?.cacheTtlSeconds;
-  const cacheTtlSeconds = Number.isFinite(Number(cacheTtlSecondsRaw))
-    ? Math.max(0, Math.min(86400, Number(cacheTtlSecondsRaw)))
-    : 1800;
-
   const [created] = await db.insert(osintApis).values({
     slug, name, url, command, example, pattern: pattern || null,
     category: category || "Miscellaneous", credits: credits ?? 1, isActive: isActive ?? true,
-    cacheTtlSeconds,
   }).returning();
   res.status(201).json({
     id: created.id, slug: created.slug, name: created.name, url: created.url, command: created.command,
     example: created.example, pattern: created.pattern, category: created.category, credits: created.credits,
-    cacheTtlSeconds: created.cacheTtlSeconds,
     isActive: created.isActive, createdAt: created.createdAt.toISOString(),
   });
 });
 
 router.put("/admin/apis/:slug", adminAuthMiddleware, async (req, res) => {
   const slug = String(req.params.slug);
-  const { name, url, command, example, pattern, category, credits, isActive, cacheTtlSeconds } = req.body;
+  const { name, url, command, example, pattern, category, credits, isActive } = req.body;
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
   if (url !== undefined) updates.url = url;
@@ -148,9 +75,6 @@ router.put("/admin/apis/:slug", adminAuthMiddleware, async (req, res) => {
   if (category !== undefined) updates.category = category;
   if (credits !== undefined) updates.credits = credits;
   if (isActive !== undefined) updates.isActive = isActive;
-  if (cacheTtlSeconds !== undefined && Number.isFinite(Number(cacheTtlSeconds))) {
-    updates.cacheTtlSeconds = Math.max(0, Math.min(86400, Number(cacheTtlSeconds)));
-  }
   
   const [updated] = await db.update(osintApis).set(updates).where(eq(osintApis.slug, slug)).returning();
   if (!updated) {
@@ -160,78 +84,8 @@ router.put("/admin/apis/:slug", adminAuthMiddleware, async (req, res) => {
   res.json({
     id: updated.id, slug: updated.slug, name: updated.name, url: updated.url, command: updated.command,
     example: updated.example, pattern: updated.pattern, category: updated.category, credits: updated.credits,
-    cacheTtlSeconds: updated.cacheTtlSeconds,
     isActive: updated.isActive, createdAt: updated.createdAt.toISOString(),
   });
-});
-
-router.get("/admin/api-health", adminAuthMiddleware, async (req, res) => {
-  // Compute per-API success / fail / last-used over the last 24h and all-time.
-  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-  const apis = await db.select().from(osintApis).orderBy(osintApis.id);
-
-  const allTimeStats = await db
-    .select({
-      slug: osintHistory.slug,
-      total: sql<number>`count(*)`,
-      success: sql<number>`sum(case when ${osintHistory.success} then 1 else 0 end)`,
-      lastUsedAt: sql<Date>`max(${osintHistory.createdAt})`,
-    })
-    .from(osintHistory)
-    .groupBy(osintHistory.slug);
-
-  const recentStats = await db
-    .select({
-      slug: osintHistory.slug,
-      total: sql<number>`count(*)`,
-      success: sql<number>`sum(case when ${osintHistory.success} then 1 else 0 end)`,
-    })
-    .from(osintHistory)
-    .where(gt(osintHistory.createdAt, since24h))
-    .groupBy(osintHistory.slug);
-
-  const allBySlug = new Map(allTimeStats.map(s => [s.slug, s]));
-  const recBySlug = new Map(recentStats.map(s => [s.slug, s]));
-
-  const result = apis.map(api => {
-    const all = allBySlug.get(api.slug);
-    const rec = recBySlug.get(api.slug);
-    const totalAll = Number(all?.total ?? 0);
-    const successAll = Number(all?.success ?? 0);
-    const total24h = Number(rec?.total ?? 0);
-    const success24h = Number(rec?.success ?? 0);
-    const successRate = totalAll === 0 ? null : Math.round((successAll / totalAll) * 100);
-    const successRate24h = total24h === 0 ? null : Math.round((success24h / total24h) * 100);
-    const lastUsedAt = all?.lastUsedAt ? new Date(all.lastUsedAt as any).toISOString() : null;
-
-    let status: "healthy" | "degraded" | "down" | "idle";
-    if (totalAll === 0) status = "idle";
-    else if (successRate24h !== null && successRate24h < 30 && total24h >= 3) status = "down";
-    else if (successRate24h !== null && successRate24h < 70 && total24h >= 3) status = "degraded";
-    else if (successRate !== null && successRate < 50) status = "degraded";
-    else status = "healthy";
-
-    return {
-      slug: api.slug,
-      name: api.name,
-      category: api.category,
-      isActive: api.isActive,
-      cacheTtlSeconds: api.cacheTtlSeconds,
-      totalRequests: totalAll,
-      successCount: successAll,
-      failCount: totalAll - successAll,
-      successRate,
-      total24h,
-      success24h,
-      fail24h: total24h - success24h,
-      successRate24h,
-      lastUsedAt,
-      status,
-    };
-  });
-
-  res.json({ apis: result, since24h: since24h.toISOString() });
 });
 
 router.delete("/admin/apis/:slug", adminAuthMiddleware, async (req, res) => {
@@ -323,25 +177,14 @@ router.post("/admin/grant-premium", adminAuthMiddleware, async (req, res) => {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30); // 30 days from now
 
-  const [updatedUser] = await db.update(crakaUsers)
+  await db.update(crakaUsers)
     .set({ 
       isPremium: true, 
       premiumPlan: plan,
       premiumExpiresAt: expiresAt,
       creditsEarned: sql`${crakaUsers.creditsEarned} + ${tokensToAdd}`
     })
-    .where(eq(crakaUsers.referralCode, code))
-    .returning({ sessionId: crakaUsers.sessionId, creditsEarned: crakaUsers.creditsEarned });
-
-  if (updatedUser?.sessionId && tokensToAdd > 0) {
-    await logTokenTxn({
-      sessionId: updatedUser.sessionId,
-      type: "grant",
-      amount: tokensToAdd,
-      reason: `Premium ${plan} grant (₹${amount})`,
-      balanceAfter: updatedUser.creditsEarned,
-    });
-  }
+    .where(eq(crakaUsers.referralCode, code));
     
   res.json({ success: true, message: `Premium (${plan}) granted to user ${code}. Added ${tokensToAdd} tokens.` });
 });
@@ -357,277 +200,47 @@ router.post("/admin/revoke-premium", adminAuthMiddleware, async (req, res) => {
     res.status(404).json({ error: "User not found with that ID" });
     return;
   }
-  const FREE_PLAN_MAX = 10;
-  const cappedCredits = Math.min(user.creditsEarned, FREE_PLAN_MAX);
-  await db.update(crakaUsers).set({
-    isPremium: false,
-    premiumPlan: null,
-    premiumExpiresAt: null,
-    creditsEarned: cappedCredits,
-  }).where(eq(crakaUsers.referralCode, code));
-  res.json({ success: true, message: `Premium revoked for user ${code}. Credits capped to ${cappedCredits}.` });
+  await db.update(crakaUsers).set({ isPremium: false, premiumPlan: null }).where(eq(crakaUsers.referralCode, code));
+  res.json({ success: true, message: `Premium revoked for user ${code}` });
 });
 
 router.get("/admin/users", adminAuthMiddleware, async (req, res) => {
-  const users = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.createdAt)).limit(200);
+  const users = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.createdAt)).limit(50);
   res.json(users.map(u => ({
     referralCode: u.referralCode,
-    email: u.email,
-    displayName: u.displayName,
-    avatarUrl: u.avatarUrl,
-    emailVerified: u.emailVerified,
     isPremium: u.isPremium,
     premiumPlan: u.premiumPlan,
-    premiumExpiresAt: u.premiumExpiresAt ? u.premiumExpiresAt.toISOString() : null,
     totalReferrals: u.totalReferrals,
     creditsEarned: u.creditsEarned,
-    isBanned: u.isBanned,
-    banReason: u.banReason,
     createdAt: u.createdAt.toISOString(),
   })));
 });
 
-/** POST /api/admin/ban-user */
-router.post("/admin/ban-user", adminAuthMiddleware, async (req, res) => {
-  const code = String(req.body?.referralCode || "").trim().toUpperCase();
-  const reason = String(req.body?.reason || "Banned by admin").trim();
-  if (!code) { res.status(400).json({ error: "referralCode required" }); return; }
+// Delete a specific user by referralCode
+router.delete("/admin/users/:code", adminAuthMiddleware, async (req, res) => {
+  const code = req.params.code.toUpperCase();
   const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  await db.update(crakaUsers).set({ isBanned: true, banReason: reason }).where(eq(crakaUsers.referralCode, code));
-  res.json({ success: true, message: `User ${code} banned.` });
-});
-
-/** POST /api/admin/unban-user */
-router.post("/admin/unban-user", adminAuthMiddleware, async (req, res) => {
-  const code = String(req.body?.referralCode || "").trim().toUpperCase();
-  if (!code) { res.status(400).json({ error: "referralCode required" }); return; }
-  await db.update(crakaUsers).set({ isBanned: false, banReason: null }).where(eq(crakaUsers.referralCode, code));
-  res.json({ success: true, message: `User ${code} unbanned.` });
-});
-
-/** DELETE /api/admin/delete-user */
-router.delete("/admin/delete-user/:referralCode", adminAuthMiddleware, async (req, res) => {
-  const code = String(req.params.referralCode || "").trim().toUpperCase();
-  if (!code) { res.status(400).json({ error: "referralCode required" }); return; }
-  const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  const { sessionId } = user;
-  // Record in deleted_accounts for abuse prevention before hard-deleting
-  await db.insert(deletedAccounts).values({
-    email: user.email ?? null,
-    googleId: user.googleId ?? null,
-  }).catch(() => {});
-  // Delete all related data first, then the user
-  await db.delete(osintHistory).where(eq(osintHistory.sessionId, sessionId)).catch(() => {});
-  await db.delete(loginLogs).where(eq(loginLogs.sessionId, sessionId)).catch(() => {});
-  await db.delete(couponUses).where(eq(couponUses.sessionId, sessionId)).catch(() => {});
-  await db.delete(crakaReferrals).where(eq(crakaReferrals.referredSessionId, sessionId)).catch(() => {});
-  await db.delete(crakaReferrals).where(eq(crakaReferrals.referrerCode, code)).catch(() => {});
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (user.isPremium) {
+    res.status(400).json({ error: "Cannot delete premium user. Revoke premium first." });
+    return;
+  }
   await db.delete(crakaUsers).where(eq(crakaUsers.referralCode, code));
-  res.json({ success: true, message: `User ${code} and all their data deleted permanently.` });
+  res.json({ success: true, message: `User ${code} deleted` });
 });
 
-/** POST /api/admin/adjust-tokens */
-router.post("/admin/adjust-tokens", adminAuthMiddleware, async (req, res) => {
-  const code = String(req.body?.referralCode || "").trim().toUpperCase();
-  const amount = Number(req.body?.amount);
-  const reason = String(req.body?.reason || "Admin adjustment").trim();
-  if (!code || isNaN(amount) || amount === 0) {
-    res.status(400).json({ error: "referralCode and non-zero amount required" });
-    return;
+// Cleanup all ghost users (non-premium, <=5 credits, 0 referrals)
+router.post("/admin/cleanup-ghosts", adminAuthMiddleware, async (req, res) => {
+  const ghosts = await db.select().from(crakaUsers).where(
+    sql`${crakaUsers.isPremium} = false AND ${crakaUsers.creditsEarned} <= 5 AND ${crakaUsers.totalReferrals} = 0`
+  );
+  for (const ghost of ghosts) {
+    await db.delete(crakaUsers).where(eq(crakaUsers.id, ghost.id));
   }
-  const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  const newBalance = Math.max(0, user.creditsEarned + amount);
-  await db.update(crakaUsers).set({ creditsEarned: newBalance }).where(eq(crakaUsers.referralCode, code));
-  if (user.sessionId) {
-    await logTokenTxn({
-      sessionId: user.sessionId,
-      type: amount > 0 ? "grant" : "spend",
-      amount,
-      reason,
-      balanceAfter: newBalance,
-    });
-  }
-  res.json({ success: true, message: `Tokens adjusted by ${amount > 0 ? "+" : ""}${amount} for ${code}. New balance: ${newBalance}` });
-});
-
-/** POST /api/admin/broadcast */
-router.post("/admin/broadcast", adminAuthMiddleware, async (req, res) => {
-  const title = String(req.body?.title || "").trim();
-  const message = String(req.body?.message || "").trim();
-  const type = String(req.body?.type || "info").trim();
-  if (!title || !message) { res.status(400).json({ error: "title and message required" }); return; }
-  const [created] = await db.insert(broadcasts).values({ title, message, type }).returning();
-  res.json({ success: true, id: created.id, message: "Broadcast sent to all users." });
-});
-
-/** GET /api/admin/broadcasts */
-router.get("/admin/broadcasts", adminAuthMiddleware, async (req, res) => {
-  const list = await db.select().from(broadcasts).orderBy(desc(broadcasts.createdAt)).limit(50);
-  res.json(list.map(b => ({ ...b, createdAt: b.createdAt.toISOString() })));
-});
-
-/** DELETE /api/admin/broadcasts/:id */
-router.delete("/admin/broadcasts/:id", adminAuthMiddleware, async (req, res) => {
-  const id = Number(req.params.id);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  await db.delete(broadcasts).where(eq(broadcasts.id, id));
-  res.json({ success: true });
-});
-
-/** GET /api/admin/login-logs — last 200 login events */
-router.get("/admin/login-logs", adminAuthMiddleware, async (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 100, 200);
-  const logs = await db
-    .select()
-    .from(loginLogs)
-    .orderBy(desc(loginLogs.createdAt))
-    .limit(limit);
-  res.json(logs.map(l => ({
-    id: l.id,
-    sessionId: l.sessionId,
-    email: l.email,
-    ipAddress: l.ipAddress,
-    userAgent: l.userAgent,
-    status: l.status,
-    method: l.method,
-    createdAt: l.createdAt.toISOString(),
-  })));
-});
-
-/** POST /api/admin/2fa/setup — generate TOTP secret + QR code */
-router.post("/admin/2fa/setup", adminAuthMiddleware, async (req, res) => {
-  const secret = generateTotpSecret(ADMIN_USER);
-  const qrCode = await generateQrCodeDataUrl(secret.otpauth_url!);
-  res.json({
-    secret: secret.base32,
-    otpauthUrl: secret.otpauth_url,
-    qrCode,
-    instructions: `Scan this QR code with Google Authenticator, then set ADMIN_2FA_SECRET=${secret.base32} as a Replit Secret.`,
-  });
-});
-
-/** GET /api/broadcasts — public endpoint for users */
-router.get("/broadcasts", async (req, res) => {
-  const list = await db.select().from(broadcasts).orderBy(desc(broadcasts.createdAt)).limit(30);
-  res.json(list.map(b => ({ ...b, createdAt: b.createdAt.toISOString() })));
-});
-
-/** GET /api/admin/coupons */
-router.get("/admin/coupons", adminAuthMiddleware, async (req, res) => {
-  const list = await db.select().from(coupons).orderBy(desc(coupons.createdAt));
-  res.json(list.map(c => ({ ...c, expiresAt: c.expiresAt?.toISOString() || null, createdAt: c.createdAt.toISOString() })));
-});
-
-/** POST /api/admin/coupons */
-router.post("/admin/coupons", adminAuthMiddleware, async (req, res) => {
-  const code = String(req.body?.code || "").trim().toUpperCase().replace(/\s+/g, "");
-  const credits = Number(req.body?.credits || 10);
-  const maxUses = Number(req.body?.maxUses || 1);
-  const description = String(req.body?.description || "").trim();
-  const expiresAt = req.body?.expiresAt ? new Date(req.body.expiresAt) : null;
-  if (!code || isNaN(credits) || credits <= 0) { res.status(400).json({ error: "code and credits required" }); return; }
-  try {
-    const [created] = await db.insert(coupons).values({ code, credits, maxUses, description, expiresAt, isActive: true }).returning();
-    res.json({ success: true, coupon: { ...created, expiresAt: created.expiresAt?.toISOString() || null, createdAt: created.createdAt.toISOString() } });
-  } catch (e: any) {
-    if (e?.code === "23505") { res.status(409).json({ error: "Coupon code already exists" }); return; }
-    throw e;
-  }
-});
-
-/** PATCH /api/admin/coupons/:code/toggle */
-router.patch("/admin/coupons/:code/toggle", adminAuthMiddleware, async (req, res) => {
-  const code = (req.params.code as string).toUpperCase();
-  const coupon = await db.select().from(coupons).where(eq(coupons.code, code)).then(r => r[0]);
-  if (!coupon) { res.status(404).json({ error: "Coupon not found" }); return; }
-  await db.update(coupons).set({ isActive: !coupon.isActive }).where(eq(coupons.code, code));
-  res.json({ success: true, isActive: !coupon.isActive });
-});
-
-/** DELETE /api/admin/coupons/:code */
-router.delete("/admin/coupons/:code", adminAuthMiddleware, async (req, res) => {
-  const code = (req.params.code as string).toUpperCase();
-  await db.delete(coupons).where(eq(coupons.code, code));
-  res.json({ success: true });
-});
-
-/** GET /api/admin/api-usage — top APIs by usage */
-router.get("/admin/api-usage", adminAuthMiddleware, async (req, res) => {
-  const usage = await db
-    .select({
-      slug: osintHistory.slug,
-      apiName: osintHistory.apiName,
-      count: sql<number>`count(*)::int`,
-      successCount: sql<number>`sum(case when ${osintHistory.success} = true then 1 else 0 end)::int`,
-    })
-    .from(osintHistory)
-    .groupBy(osintHistory.slug, osintHistory.apiName)
-    .orderBy(desc(sql`count(*)`))
-    .limit(15);
-  res.json(usage);
-});
-
-/** GET /api/admin/scheduled-broadcasts */
-router.get("/admin/scheduled-broadcasts", adminAuthMiddleware, async (req, res) => {
-  const list = await db.select().from(scheduledBroadcasts).orderBy(desc(scheduledBroadcasts.scheduledAt));
-  res.json(list.map(b => ({ ...b, scheduledAt: b.scheduledAt.toISOString(), sentAt: b.sentAt?.toISOString() || null, createdAt: b.createdAt.toISOString() })));
-});
-
-/** POST /api/admin/scheduled-broadcasts */
-router.post("/admin/scheduled-broadcasts", adminAuthMiddleware, async (req, res) => {
-  const title = String(req.body?.title || "").trim();
-  const message = String(req.body?.message || "").trim();
-  const type = String(req.body?.type || "info").trim();
-  const scheduledAt = new Date(req.body?.scheduledAt);
-  if (!title || !message || isNaN(scheduledAt.getTime())) { res.status(400).json({ error: "title, message, scheduledAt required" }); return; }
-  const [created] = await db.insert(scheduledBroadcasts).values({ title, message, type, scheduledAt, sent: false }).returning();
-  res.json({ success: true, scheduled: { ...created, scheduledAt: created.scheduledAt.toISOString(), sentAt: null, createdAt: created.createdAt.toISOString() } });
-});
-
-/** DELETE /api/admin/scheduled-broadcasts/:id */
-router.delete("/admin/scheduled-broadcasts/:id", adminAuthMiddleware, async (req, res) => {
-  const id = Number(req.params.id);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  await db.delete(scheduledBroadcasts).where(eq(scheduledBroadcasts.id, id));
-  res.json({ success: true });
-});
-
-// Background: process scheduled broadcasts every 30 seconds
-async function processScheduledBroadcasts() {
-  try {
-    const due = await db.select().from(scheduledBroadcasts)
-      .where(and(eq(scheduledBroadcasts.sent, false), lte(scheduledBroadcasts.scheduledAt, new Date())));
-    for (const sb of due) {
-      await db.insert(broadcasts).values({ title: sb.title, message: sb.message, type: sb.type });
-      await db.update(scheduledBroadcasts).set({ sent: true, sentAt: new Date() }).where(eq(scheduledBroadcasts.id, sb.id));
-    }
-  } catch { /* silent */ }
-}
-setInterval(processScheduledBroadcasts, 30_000);
-processScheduledBroadcasts().catch(() => {});
-
-/** POST /api/admin/2fa/verify — verify TOTP before saving secret */
-router.post("/admin/2fa/verify", adminAuthMiddleware, async (req, res) => {
-  const { secret, token } = req.body as { secret?: string; token?: string };
-  if (!secret || !token) {
-    res.status(400).json({ error: "secret and token are required" });
-    return;
-  }
-  const valid = verifyTotp(secret, token);
-  if (!valid) {
-    res.status(400).json({ valid: false, message: "Invalid TOTP code. Try again." });
-    return;
-  }
-  res.json({ valid: true, message: "Code verified! Now save the ADMIN_2FA_SECRET in Replit Secrets to enable 2FA." });
-});
-
-/** GET /api/admin/2fa/status */
-router.get("/admin/2fa/status", adminAuthMiddleware, async (req, res) => {
-  const secret = getAdmin2FaSecret();
-  res.json({ enabled: !!secret });
+  res.json({ success: true, deleted: ghosts.length, message: `${ghosts.length} ghost users deleted` });
 });
 
 export default router;
