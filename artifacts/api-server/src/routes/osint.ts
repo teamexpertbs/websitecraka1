@@ -114,13 +114,29 @@ function injectDeveloperCredit(data: Record<string, unknown>): Record<string, un
 }
 
 router.get("/osint/apis", async (req, res) => {
-  const apis = await db.select().from(osintApis).where(eq(osintApis.isActive, true));
-  const mapped = apis.map(a => ({
-    id: a.id, slug: a.slug, name: a.name, url: a.url, command: a.command,
-    example: a.example, pattern: a.pattern, category: a.category, credits: a.credits,
-    isActive: a.isActive, createdAt: a.createdAt.toISOString(),
-  }));
-  res.json(mapped);
+  try {
+    const apis = await db.select().from(osintApis).where(eq(osintApis.isActive, true));
+    const mapped = apis.map(a => ({
+      id: a.id, slug: a.slug, name: a.name, url: a.url, command: a.command,
+      example: a.example, pattern: a.pattern, category: a.category, credits: a.credits,
+      isActive: a.isActive, createdAt: a.createdAt.toISOString(),
+    }));
+    res.json(mapped);
+  } catch (err: any) {
+    res.status(500).json({ error: "db_error", detail: err?.message ?? String(err) });
+  }
+});
+
+router.get("/osint/debug-db", async (_req, res) => {
+  try {
+    const { pool } = await import("@workspace/db");
+    const client = await pool.connect();
+    const r = await client.query("SELECT count(*) FROM osint_apis");
+    client.release();
+    res.json({ ok: true, osint_apis_count: r.rows[0].count });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err?.message ?? String(err) });
+  }
 });
 
 router.post("/osint/lookup", async (req, res) => {
