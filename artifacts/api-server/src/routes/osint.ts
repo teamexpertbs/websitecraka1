@@ -32,7 +32,7 @@ const DEFAULT_APIS = [
 
 async function seedDefaultApis() {
   const count = await db.select({ count: sql<number>`count(*)` }).from(osintApis);
-  if (Number(count[0].count) === 0) {
+  if (Number(count[0]?.count ?? 0) === 0) {
     for (const api of DEFAULT_APIS) {
       await db.insert(osintApis).values({
         ...api,
@@ -83,7 +83,7 @@ function injectDeveloperCredit(data: Record<string, unknown>): Record<string, un
   function replaceHandlesInString(s: string): string {
     let out = s;
     for (const handle of knownHandles) {
-      const re = new RegExp(handle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+      const re = new RegExp(handle.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"), "gi");
       out = out.replace(re, DEVELOPER_CREDIT);
     }
     return out;
@@ -257,12 +257,12 @@ router.get("/osint/history", async (req, res) => {
   
   const [entries, totalResult] = await Promise.all([
     db.select().from(osintHistory).orderBy(desc(osintHistory.createdAt)).limit(limit).offset(offset),
-    db.select({ count: sql<number>`count(*)` }).from(osintHistory),
+    db.select({ count: sql<number>\`count(*)\` }).from(osintHistory),
   ]);
   
   res.json({
     entries: entries.map(e => ({ ...e, createdAt: e.createdAt.toISOString() })),
-    total: Number(totalResult[0].count),
+    total: Number(totalResult[0]?.count ?? 0),
     page,
     limit,
   });
@@ -270,29 +270,29 @@ router.get("/osint/history", async (req, res) => {
 
 router.get("/osint/stats", async (req, res) => {
   const [totalResult, successResult, activeApisResult, cacheResult] = await Promise.all([
-    db.select({ count: sql<number>`count(*)` }).from(osintHistory),
-    db.select({ count: sql<number>`count(*)` }).from(osintHistory).where(eq(osintHistory.success, true)),
-    db.select({ count: sql<number>`count(*)` }).from(osintApis).where(eq(osintApis.isActive, true)),
-    db.select({ count: sql<number>`count(*)` }).from(osintCache),
+    db.select({ count: sql<number>\`count(*)\` }).from(osintHistory),
+    db.select({ count: sql<number>\`count(*)\` }).from(osintHistory).where(eq(osintHistory.success, true)),
+    db.select({ count: sql<number>\`count(*)\` }).from(osintApis).where(eq(osintApis.isActive, true)),
+    db.select({ count: sql<number>\`count(*)\` }).from(osintCache),
   ]);
   
   const categoryBreakdown = await db.select({
     category: osintApis.category,
-    count: sql<number>`count(${osintHistory.id})`,
+    count: sql<number>\`count(\${osintHistory.id})\`,
   }).from(osintHistory).leftJoin(osintApis, eq(osintHistory.slug, osintApis.slug)).groupBy(osintApis.category);
   
   const topApis = await db.select({
     apiName: osintHistory.apiName,
-    count: sql<number>`count(*)`,
-  }).from(osintHistory).groupBy(osintHistory.apiName).orderBy(desc(sql`count(*)`)).limit(10);
+    count: sql<number>\`count(*)\`,
+  }).from(osintHistory).groupBy(osintHistory.apiName).orderBy(desc(sql\`count(*)\`)).limit(10);
   
   const recentActivity = await db.select().from(osintHistory).orderBy(desc(osintHistory.createdAt)).limit(10);
   
   res.json({
-    totalLookups: Number(totalResult[0].count),
-    successfulLookups: Number(successResult[0].count),
-    activeApis: Number(activeApisResult[0].count),
-    cachedResults: Number(cacheResult[0].count),
+    totalLookups: Number(totalResult[0]?.count ?? 0),
+    successfulLookups: Number(successResult[0]?.count ?? 0),
+    activeApis: Number(activeApisResult[0]?.count ?? 0),
+    cachedResults: Number(cacheResult[0]?.count ?? 0),
     categoryBreakdown: categoryBreakdown.map(r => ({ category: r.category ?? "Unknown", count: Number(r.count) })),
     topApis: topApis.map(r => ({ apiName: r.apiName, count: Number(r.count) })),
     recentActivity: recentActivity.map(e => ({ ...e, createdAt: e.createdAt.toISOString() })),
