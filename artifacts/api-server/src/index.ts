@@ -19,6 +19,9 @@ for (const envPath of envCandidates) {
 const { default: app } = await import("./app");
 const { logger } = await import("./lib/logger");
 const { verifySMTPOnStartup } = await import("./lib/email");
+const { runMigrations } = await import("./lib/migrate");
+
+await runMigrations();
 
 const rawPort = process.env["PORT"];
 
