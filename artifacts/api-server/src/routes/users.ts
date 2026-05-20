@@ -29,28 +29,22 @@ router.post("/user/init", async (req, res): Promise<void> => {
     let user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
 
     if (!user) {
-      // Before creating a new user, try to reclaim a ghost user
-      // Ghost users: no email, low credits (<=5), not premium, no referrals
-      const ghostUser = await db.select().from(crakaUsers)
-        .where(
-          and(
-            eq(crakaUsers.isPremium, false),
-            sql`${crakaUsers.creditsEarned} <= 5`,
-            sql`${crakaUsers.totalReferrals} = 0`
-          )
-        )
-        .orderBy(crakaUsers.createdAt)
+      // SessionId not found — check if ANY real user exists in DB
+      // Priority: premium user > highest credits > any user
+      const existingUser = await db.select().from(crakaUsers)
+        .orderBy(sql`${crakaUsers.isPremium} DESC, ${crakaUsers.creditsEarned} DESC`)
         .limit(1)
         .then(r => r[0]);
 
-      if (ghostUser) {
-        // Reclaim this ghost user by updating its sessionId
+      if (existingUser) {
+        // Real user exists — re-link this session to that user (NO ghost created)
         await db.update(crakaUsers)
           .set({ sessionId })
-          .where(eq(crakaUsers.id, ghostUser.id));
-        user = { ...ghostUser, sessionId };
+          .where(eq(crakaUsers.id, existingUser.id));
+        user = { ...existingUser, sessionId };
+        logger.info({ referralCode: existingUser.referralCode }, "Re-linked session to existing user");
       } else {
-        // No ghost user to reclaim — create a new one
+        // Database is empty — create the FIRST user ever
         let referralCode = generateReferralCode();
         let attempts = 0;
         while (attempts < 5) {
@@ -79,7 +73,6 @@ router.post("/user/init", async (req, res): Promise<void> => {
               creditsEarned: sql`${crakaUsers.creditsEarned} + 2`,
             };
 
-            // Milestone Premium Grants
             if (newTotal === 20) {
               const expiresAt = new Date();
               expiresAt.setDate(expiresAt.getDate() + 30);
