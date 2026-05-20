@@ -12,7 +12,7 @@ const router = Router();
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  logger.warn("\u26a0\ufe0f JWT_SECRET not set! Using insecure fallback. SET THIS IN PRODUCTION!");
+  logger.warn("⚠️ JWT_SECRET not set! Using insecure fallback. SET THIS IN PRODUCTION!");
 }
 const SECRET = JWT_SECRET || "dev-secret-CHANGE-ME-" + Date.now();
 const USER_JWT_EXPIRY = "30d";
@@ -162,6 +162,11 @@ router.post("/auth/google", async (req, res): Promise<void> => {
         .returning();
       user = created;
 
+      if (!user) {
+        res.status(500).json({ error: "Failed to create user account" });
+        return;
+      }
+
       if (bonusCredits > 0) {
         await logTokenTxn({
           sessionId: user.sessionId,
@@ -187,6 +192,16 @@ router.post("/auth/google", async (req, res): Promise<void> => {
         .where(eq(crakaUsers.id, user.id))
         .returning();
       user = updated;
+
+      if (!user) {
+        res.status(500).json({ error: "Failed to update user profile" });
+        return;
+      }
+    }
+
+    if (!user) {
+      res.status(500).json({ error: "Failed to authenticate user" });
+      return;
     }
 
     // Check if user is banned
