@@ -173,7 +173,7 @@ router.post("/osint/lookup", async (req, res) => {
   if (!isUnlimited && user.creditsEarned >= apiRow.credits) {
     await db.update(crakaUsers)
       .set({ creditsEarned: sql`${crakaUsers.creditsEarned} - ${apiRow.credits}` })
-      .where(eq(crakaUsers.sessionId, sessionId));
+      .where(eq(crakaUsers.sessionId, sessionId!));
   } else if (!isUnlimited && user.creditsEarned < apiRow.credits) {
     res.status(403).json({ error: "Not enough tokens to perform this search." });
     return;
@@ -209,7 +209,7 @@ router.post("/osint/lookup", async (req, res) => {
       await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
       if (!isUnlimited) {
         // Refund tokens
-        await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId));
+        await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId!));
       }
       res.json({ data: rawData || {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: `Search Failed or No Data (Tokens Refunded)` });
       return;
@@ -225,7 +225,7 @@ router.post("/osint/lookup", async (req, res) => {
     await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
     if (!isUnlimited) {
       // Refund tokens on catch error
-      await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId));
+      await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, sessionId!));
     }
     res.json({ data: {}, cached: false, apiName: apiRow.name, success: false, developer: DEVELOPER_CREDIT, error: "Network Error (Tokens Refunded)" });
   }
