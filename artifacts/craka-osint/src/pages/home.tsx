@@ -1,9 +1,5 @@
-import { useEffect, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useListApis, usePerformLookup, customFetch } from "@workspace/api-client-react";
-import { ensureUserInitialized, getOrCreateSession } from "@/lib/session";
-import { useCurrentUser, useRefreshCurrentUser, isUnlimitedUser } from "@/lib/user";
-import { BuyTokensModal } from "@/components/buy-tokens-modal";
+import { useState } from "react";
+import { useListApis, usePerformLookup } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,67 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import {
   Terminal, Search, ShieldAlert, Cpu, CheckCircle2, AlertCircle,
-  Copy, Check, Download, Share2, Languages, ExternalLink,
-  Bookmark, BookmarkCheck, Bell, X, Info, Zap, AlertTriangle
+  Copy, Check, Download, Share2, Languages, ExternalLink
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CATEGORIES = ["All", "Phone", "Identity", "Vehicle", "Banking", "Location", "Network", "Email", "Social", "Gaming"];
-
-const BROADCAST_STORAGE_KEY = "craka_read_broadcasts";
-
-function BroadcastsBanner() {
-  const { data: broadcasts = [] } = useQuery({
-    queryKey: ["public-broadcasts"],
-    queryFn: async () => customFetch("/api/broadcasts") as Promise<any[]>,
-    staleTime: 60_000,
-  });
-
-  const [dismissed, setDismissed] = useState<Set<number>>(() => {
-    try {
-      const raw = localStorage.getItem(BROADCAST_STORAGE_KEY);
-      return raw ? new Set(JSON.parse(raw) as number[]) : new Set();
-    } catch { return new Set(); }
-  });
-
-  const visible = (broadcasts as any[]).filter((b: any) => !dismissed.has(b.id)).slice(0, 3);
-  if (visible.length === 0) return null;
-
-  const dismiss = (id: number) => {
-    const next = new Set(dismissed).add(id);
-    setDismissed(next);
-    localStorage.setItem(BROADCAST_STORAGE_KEY, JSON.stringify([...next]));
-  };
-
-  const typeStyle = (type: string) => {
-    if (type === "success") return { bar: "bg-green-400", bg: "bg-green-400/8 border-green-400/20", icon: <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" /> };
-    if (type === "warning") return { bar: "bg-yellow-400", bg: "bg-yellow-400/8 border-yellow-400/20", icon: <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0" /> };
-    if (type === "error") return { bar: "bg-destructive", bg: "bg-destructive/8 border-destructive/20", icon: <AlertCircle className="w-4 h-4 text-destructive shrink-0" /> };
-    if (type === "promo") return { bar: "bg-purple-400", bg: "bg-purple-400/8 border-purple-400/20", icon: <Zap className="w-4 h-4 text-purple-400 shrink-0" /> };
-    return { bar: "bg-primary", bg: "bg-primary/8 border-primary/20", icon: <Bell className="w-4 h-4 text-primary shrink-0" /> };
-  };
-
-  return (
-    <div className="space-y-2 mb-4">
-      {visible.map((b: any) => {
-        const s = typeStyle(b.type);
-        return (
-          <div key={b.id} className={`flex items-start gap-3 px-4 py-3 rounded-lg border ${s.bg} relative overflow-hidden`}>
-            <div className={`absolute left-0 top-0 bottom-0 w-1 ${s.bar} rounded-l-lg`} />
-            {s.icon}
-            <div className="flex-1 min-w-0 pl-1">
-              <p className="text-sm font-semibold text-foreground">{b.title}</p>
-              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{b.message}</p>
-            </div>
-            <button onClick={() => dismiss(b.id)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function flattenData(data: Record<string, unknown>, prefix = ""): Array<{ key: string; value: string }> {
   const rows: Array<{ key: string; value: string }> = [];
@@ -160,38 +100,17 @@ function hindiValue(value: string): string {
 interface ResultRow { key: string; value: string }
 
 function ResultViewer({
-  rows, apiName, query, cached, slug, sessionId
+  rows, apiName, query, cached
 }: {
   rows: ResultRow[];
   apiName: string;
   query: string;
   cached: boolean;
-  slug?: string;
-  sessionId?: string;
 }) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showHindi, setShowHindi] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
   const { toast } = useToast();
-  const qc = useQueryClient();
-
-  const handleBookmark = async () => {
-    if (!sessionId || !slug) { toast({ title: "Sign in to save bookmarks", variant: "destructive" }); return; }
-    try {
-      await customFetch("/api/user/bookmarks", {
-        method: "POST",
-        body: JSON.stringify({ sessionId, slug, apiName, queryVal: query, label: `${apiName}: ${query}` }),
-      });
-      setBookmarked(true);
-      qc.invalidateQueries({ queryKey: ["bookmarks", sessionId] });
-      toast({ title: "Saved!", description: "Lookup saved to your bookmarks." });
-    } catch (e: any) {
-      const msg = e?.data?.error || "Already bookmarked";
-      if (msg.includes("Already")) { setBookmarked(true); toast({ title: "Already bookmarked" }); }
-      else toast({ title: "Failed to bookmark", variant: "destructive" });
-    }
-  };
 
   const display = rows.filter(r => r.key !== "Developer" && r.value !== "—");
 
@@ -284,17 +203,6 @@ function ResultViewer({
           <Share2 className="w-3.5 h-3.5" />
           Share
         </button>
-        <button
-          onClick={handleBookmark}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold border transition-all ${
-            bookmarked
-              ? "bg-primary/10 border-primary/40 text-primary"
-              : "bg-card border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
-          }`}
-        >
-          {bookmarked ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
-          {bookmarked ? "Saved" : "Save"}
-        </button>
         {cached && (
           <span className="ml-auto flex items-center gap-1 text-[10px] text-yellow-400/70 border border-yellow-400/20 bg-yellow-400/5 rounded px-2 py-1">
             CACHED
@@ -306,7 +214,7 @@ function ResultViewer({
         {display.length === 0 ? (
           <div className="text-muted-foreground text-sm py-4 text-center">No data returned.</div>
         ) : rawText ? (
-          <div className="rounded-md bg-muted/40 border border-border/30 p-4">
+          <div className="rounded-md bg-black/40 border border-border/30 p-4">
             <pre className="text-sm text-foreground whitespace-pre-wrap break-words font-mono leading-relaxed">{rawText}</pre>
           </div>
         ) : display.map((row) => {
@@ -316,7 +224,7 @@ function ResultViewer({
           return (
             <div
               key={row.key}
-              className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 py-2 px-3 rounded-md bg-muted/30 border border-border/30 hover:border-primary/20 transition-all"
+              className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 py-2 px-3 rounded-md bg-black/30 border border-border/30 hover:border-primary/20 transition-all"
             >
               <div className="flex items-center justify-between sm:justify-start gap-2 sm:w-36 sm:flex-shrink-0">
                 <span className="text-[10px] font-bold text-primary/60 uppercase tracking-widest leading-5 truncate">
@@ -360,8 +268,6 @@ function ResultViewer({
 export default function Home() {
   const { data: apis = [], isLoading: isLoadingApis } = useListApis();
   const performLookup = usePerformLookup();
-  const { data: currentUser } = useCurrentUser();
-  const refreshUser = useRefreshCurrentUser();
   const { toast } = useToast();
 
   const [activeCategory, setActiveCategory] = useState("All");
@@ -369,11 +275,6 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<any>(null);
   const [lastQuery, setLastQuery] = useState("");
-  const [showTokenModal, setShowTokenModal] = useState<{ open: boolean; reason: "out-of-tokens" | "insufficient"; need?: number }>({ open: false, reason: "out-of-tokens" });
-
-  useEffect(() => {
-    ensureUserInitialized();
-  }, []);
 
   const filteredApis = apis.filter(api =>
     api.isActive && (activeCategory === "All" || api.category === activeCategory)
@@ -396,27 +297,21 @@ export default function Home() {
       }
     }
 
-    // Pre-flight check: tokens
-    const unlimited = isUnlimitedUser(currentUser);
-    const required = selectedApi?.credits ?? 1;
-    const available = currentUser?.creditsEarned ?? 0;
-    if (!unlimited && available < required) {
-      setShowTokenModal({
-        open: true,
-        reason: available === 0 ? "out-of-tokens" : "insufficient",
-        need: required,
+    const sessionId = localStorage.getItem("craka_session_id");
+    if (!sessionId) {
+      toast({
+        title: "Session Error",
+        description: "Session not found. Please reload the page.",
+        variant: "destructive"
       });
       return;
     }
 
     setResult(null);
     setLastQuery(query);
-    const sessionId = getOrCreateSession();
-    performLookup.mutate({ data: { slug: selectedApiSlug, query, sessionId } }, {
+    performLookup.mutate({ data: { slug: selectedApiSlug, query, sessionId } as any }, {
       onSuccess: (data) => {
         setResult(data);
-        // Refresh tokens after every lookup attempt
-        refreshUser();
         if (!data.success) {
           toast({
             title: "Lookup Failed",
@@ -426,20 +321,9 @@ export default function Home() {
         }
       },
       onError: (error: any) => {
-        refreshUser();
-        const status = error?.status ?? error?.response?.status;
-        const msg = error?.data?.error || error?.message || "An unknown error occurred";
-        if (status === 403 || /not enough tokens|insufficient/i.test(msg)) {
-          setShowTokenModal({
-            open: true,
-            reason: (currentUser?.creditsEarned ?? 0) === 0 ? "out-of-tokens" : "insufficient",
-            need: selectedApi?.credits ?? 1,
-          });
-          return;
-        }
         toast({
           title: "Lookup Failed",
-          description: msg,
+          description: error?.data?.error || "An unknown error occurred",
           variant: "destructive"
         });
       }
@@ -450,17 +334,16 @@ export default function Home() {
 
   return (
     <Layout>
-      <div className="max-w-5xl mx-auto space-y-5">
-        <BroadcastsBanner />
-        <header className="mb-5">
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary flex items-center gap-3">
-            <Terminal className="w-7 h-7 sm:w-8 sm:h-8" />
+      <div className="max-w-5xl mx-auto space-y-6">
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-primary flex items-center gap-3">
+            <Terminal className="w-8 h-8" />
             Command Center
           </h1>
-          <p className="text-muted-foreground mt-1.5 text-sm">Initialize target acquisition protocol.</p>
+          <p className="text-muted-foreground mt-2">Initialize target acquisition protocol.</p>
         </header>
 
-        <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-6">
           {CATEGORIES.map(cat => (
             <Badge
               key={cat}
@@ -473,8 +356,8 @@ export default function Home() {
           ))}
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4 sm:gap-6">
-          <div className="md:col-span-1 order-2 md:order-1 space-y-3 max-h-[400px] md:max-h-[600px] overflow-y-auto pr-1">
+        <div className="grid md:grid-cols-3 gap-6">
+          <div className="md:col-span-1 order-2 md:order-1 space-y-4 max-h-[600px] overflow-y-auto pr-2">
             {isLoadingApis ? (
               <div className="space-y-3">
                 {[1,2,3,4,5].map(i => (
@@ -512,7 +395,7 @@ export default function Home() {
 
           <div className="md:col-span-2 order-1 md:order-2 space-y-6">
             <Card className="border-border shadow-lg bg-card/80 backdrop-blur">
-              <CardHeader className="border-b border-border bg-muted/20 pb-4">
+              <CardHeader className="border-b border-border bg-black/20 pb-4">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Cpu className="w-5 h-5 text-primary" />
                   {selectedApi ? `Target: ${selectedApi.name}` : "Select a target vector"}
@@ -541,7 +424,7 @@ export default function Home() {
                       onKeyDown={(e) => e.key === "Enter" && handleLookup()}
                       disabled={!selectedApi || performLookup.isPending}
                       placeholder={selectedApi ? `Enter ${selectedApi.example}...` : "Awaiting vector selection..."}
-                      className="pl-10 bg-muted/50 border-border focus-visible:ring-primary font-mono"
+                      className="pl-10 bg-black/50 border-border focus-visible:ring-primary font-mono"
                       autoComplete="off"
                       spellCheck="false"
                     />
@@ -572,7 +455,7 @@ export default function Home() {
                 <CardContent className="p-6">
                   <div className="space-y-2">
                     {[1,2,3,4].map(i => (
-                      <div key={i} className="h-8 bg-muted/40 rounded w-full" style={{ width: `${85 - i * 10}%` }} />
+                      <div key={i} className="h-8 bg-black/40 rounded w-full" style={{ width: `${85 - i * 10}%` }} />
                     ))}
                   </div>
                 </CardContent>
@@ -603,8 +486,6 @@ export default function Home() {
                       apiName={result.apiName}
                       query={lastQuery}
                       cached={result.cached}
-                      slug={selectedApiSlug || undefined}
-                      sessionId={getOrCreateSession()}
                     />
                   ) : (
                     <div className="p-6 text-destructive text-sm">
@@ -617,14 +498,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-
-      <BuyTokensModal
-        open={showTokenModal.open}
-        onClose={() => setShowTokenModal((s) => ({ ...s, open: false }))}
-        currentTokens={currentUser?.creditsEarned ?? 0}
-        needTokens={showTokenModal.need}
-        reason={showTokenModal.reason}
-      />
     </Layout>
   );
 }
