@@ -191,7 +191,7 @@ export default function Profile() {
       <div className="max-w-3xl mx-auto space-y-6 px-4 sm:px-6 py-4 sm:py-6">
         <header>
           {/* Fix 5: icon smaller on mobile, text truncates */}
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary flex items-center gap-2 sm:gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary flex items-center gap-2 sm:gap-3 min-w-0">
             <User className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" />
             <span className="truncate">My Profile</span>
           </h1>
@@ -201,11 +201,11 @@ export default function Profile() {
         {/* User Identity Card */}
         <Card className="border-border bg-card/80">
           <CardContent className="p-6">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               {signedInUser?.avatarUrl ? (
-                <img src={signedInUser.avatarUrl} alt={signedInUser.name} className="w-16 h-16 rounded-full border-2 border-primary/30 object-cover" referrerPolicy="no-referrer" />
+                <img src={signedInUser.avatarUrl} alt={signedInUser.name} className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-primary/30 object-cover shrink-0" referrerPolicy="no-referrer" />
               ) : (
-                <div className="w-16 h-16 rounded-full bg-primary/20 border-2 border-primary/30 flex items-center justify-center text-primary text-xl font-bold">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-primary/20 border-2 border-primary/30 flex items-center justify-center text-primary text-xl font-bold shrink-0">
                   {signedInUser?.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase() || "?"}
                 </div>
               )}
@@ -231,28 +231,28 @@ export default function Profile() {
         {/* Fix 11: Use currentUser (fresh DB) for credits & referrals, fall back to stale JWT */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <Card className="border-border bg-card/60">
-            <CardContent className="p-4 flex flex-col items-center gap-1">
-              <Zap className="w-6 h-6 text-yellow-400" />
-              <span className="text-2xl font-bold text-foreground">
+            <CardContent className="p-3 sm:p-4 flex flex-col items-center gap-1 min-w-0 w-full">
+              <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400 shrink-0" />
+              <span className="text-lg sm:text-2xl font-bold text-foreground tabular-nums truncate max-w-full">
                 {currentUser?.creditsEarned ?? signedInUser?.creditsEarned ?? 0}
               </span>
-              <span className="text-xs text-muted-foreground">Credits</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">Credits</span>
             </CardContent>
           </Card>
           <Card className="border-border bg-card/60">
-            <CardContent className="p-4 flex flex-col items-center gap-1">
-              <Gift className="w-6 h-6 text-green-400" />
-              <span className="text-2xl font-bold text-foreground">
+            <CardContent className="p-3 sm:p-4 flex flex-col items-center gap-1 min-w-0 w-full">
+              <Gift className="w-5 h-5 sm:w-6 sm:h-6 text-green-400 shrink-0" />
+              <span className="text-lg sm:text-2xl font-bold text-foreground tabular-nums truncate max-w-full">
                 {currentUser?.totalReferrals ?? signedInUser?.totalReferrals ?? 0}
               </span>
-              <span className="text-xs text-muted-foreground">Referrals</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">Referrals</span>
             </CardContent>
           </Card>
           <Card className="border-border bg-card/60">
-            <CardContent className="p-4 flex flex-col items-center gap-1">
-              <Bookmark className="w-6 h-6 text-primary" />
-              <span className="text-2xl font-bold text-foreground">{bookmarkList.length}</span>
-              <span className="text-xs text-muted-foreground">Bookmarks</span>
+            <CardContent className="p-3 sm:p-4 flex flex-col items-center gap-1 min-w-0 w-full">
+              <Bookmark className="w-5 h-5 sm:w-6 sm:h-6 text-primary shrink-0" />
+              <span className="text-lg sm:text-2xl font-bold text-foreground tabular-nums truncate max-w-full">{bookmarkList.length}</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">Bookmarks</span>
             </CardContent>
           </Card>
         </div>
@@ -267,7 +267,7 @@ export default function Profile() {
           </CardHeader>
           <CardContent className="p-4">
             {/* Fix 3: min-w-0 on input prevents overflow on small screens */}
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Input
                 value={couponCode}
                 onChange={e => setCouponCode(e.target.value.toUpperCase())}
@@ -279,12 +279,12 @@ export default function Profile() {
               <Button
                 onClick={handleRedeemCoupon}
                 disabled={!couponCode.trim() || redeemCoupon.isPending}
-                className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+                className="w-full sm:w-auto shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 {redeemCoupon.isPending ? (
                   <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <><CheckCircle2 className="w-4 h-4 mr-1" /> Redeem</>
+                  <><CheckCircle2 className="w-4 h-4 sm:mr-1" /><span>Redeem</span></>
                 )}
               </Button>
             </div>
@@ -303,7 +303,7 @@ export default function Profile() {
             </CardHeader>
             <CardContent className="p-4">
               {/* Fix 3: min-w-0 on input prevents overflow on small screens */}
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   value={referralInput}
                   onChange={e => setReferralInput(e.target.value.toUpperCase())}
@@ -315,12 +315,12 @@ export default function Profile() {
                 <Button
                   onClick={handleApplyReferral}
                   disabled={!referralInput.trim() || applyReferral.isPending}
-                  className="shrink-0 bg-green-600 text-white hover:bg-green-500"
+                  className="w-full sm:w-auto shrink-0 bg-green-600 text-white hover:bg-green-500"
                 >
                   {applyReferral.isPending ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
-                    <><CheckCircle2 className="w-4 h-4 mr-1" /> Apply</>
+                    <><CheckCircle2 className="w-4 h-4 sm:mr-1" /><span>Apply</span></>
                   )}
                 </Button>
               </div>
@@ -357,11 +357,12 @@ export default function Profile() {
                     <Tag className="w-4 h-4 text-primary/60 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{bm.label || bm.queryVal}</p>
-                      <p className="text-[10px] text-muted-foreground">{bm.apiName}</p>
+                      <p className="text-xs text-muted-foreground">{bm.apiName}</p>
                     </div>
                     {/* Fix 7: remove mr-2 spacing (parent gap handles it) */}
-                    <Link href={`/?slug=${bm.slug}&q=${encodeURIComponent(bm.queryVal)}`} className="block">
-                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground hover:text-primary cursor-pointer" />
+                    <Link href={`/?slug=${bm.slug}&q=${encodeURIComponent(bm.queryVal)}`}
+                      className="p-2 -m-2 shrink-0 text-muted-foreground hover:text-primary">
+                      <ExternalLink className="w-4 h-4" />
                     </Link>
                     {/* Fix 7: larger tap target for delete on mobile */}
                     <button
@@ -386,7 +387,7 @@ export default function Profile() {
                 <Gift className="w-5 h-5 text-green-400 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-green-400 truncate">Refer</p>
-                  <p className="text-[10px] text-muted-foreground truncate">Invite friends</p>
+                  <p className="text-xs text-muted-foreground truncate">Invite friends</p>
                 </div>
               </CardContent>
             </Card>
@@ -397,7 +398,7 @@ export default function Profile() {
                 <Crown className="w-5 h-5 text-yellow-400 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-yellow-400 truncate">Go Premium</p>
-                  <p className="text-[10px] text-muted-foreground truncate">Unlimited searches</p>
+                  <p className="text-xs text-muted-foreground truncate">Unlimited searches</p>
                 </div>
               </CardContent>
             </Card>
@@ -438,8 +439,9 @@ export default function Profile() {
 
         {/* Fix 9: Modal scrollable on landscape/small-height phones */}
         {showDeleteConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-            <Card className="w-full max-w-md my-auto border-red-500/40 bg-card shadow-2xl">
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm">
+            <div className="min-h-full flex items-center justify-center p-4">
+            <Card className="w-full max-w-md border-red-500/40 bg-card shadow-2xl">
               <CardHeader className="pb-3 border-b border-red-500/20">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2 text-red-400">
@@ -493,6 +495,7 @@ export default function Profile() {
                 </div>
               </CardContent>
             </Card>
+            </div>
           </div>
         )}
       </div>
