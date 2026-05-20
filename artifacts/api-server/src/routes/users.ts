@@ -32,7 +32,7 @@ router.post("/user/init", async (req, res): Promise<void> => {
       // SessionId not found — check if ANY real user exists in DB
       // Priority: premium user > highest credits > any user
       const existingUser = await db.select().from(crakaUsers)
-        .orderBy(sql`${crakaUsers.isPremium} DESC, ${crakaUsers.creditsEarned} DESC`)
+        .orderBy(sql`"is_premium" DESC, "credits_earned" DESC`)
         .limit(1)
         .then(r => r[0]);
 
