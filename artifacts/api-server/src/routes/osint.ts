@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, osintApis, osintHistory, osintCache, crakaUsers } from "@workspace/db";
+import { db, osintApis, osintHistory, osintCache, crakaUsers, broadcasts } from "@workspace/db";
 import { eq, sql, desc, and, gt } from "drizzle-orm";
 import https from "https";
 import http from "http";
@@ -302,6 +302,16 @@ router.get("/osint/stats", async (req, res) => {
     topApis: topApis.map(r => ({ apiName: r.apiName, count: Number(r.count) })),
     recentActivity: recentActivity.map(e => ({ ...e, createdAt: e.createdAt.toISOString() })),
   });
+});
+
+// Public broadcasts endpoint (no auth required)
+router.get("/broadcasts", async (req, res) => {
+  try {
+    const list = await db.select().from(broadcasts).orderBy(desc(broadcasts.createdAt)).limit(30);
+    res.json(list.map(b => ({ ...b, createdAt: b.createdAt.toISOString() })));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 export default router;
