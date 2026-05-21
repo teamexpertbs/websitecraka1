@@ -1,7 +1,43 @@
+import { execSync } from "child_process";
+import path from "path";
+import { existsSync } from "fs";
 import { pool } from "@workspace/db";
 import { logger } from "./logger";
 
-const TABLES = [
+// ── Walk up from cwd to find the monorepo root (has pnpm-workspace.yaml) ──────
+function findWorkspaceRoot(): string | null {
+  let dir = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    if (existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+// ── Primary: drizzle-kit push --force (fully auto-syncs schema to DB) ─────────
+async function pushSchema(root: string): Promise<boolean> {
+  try {
+    const result = execSync("pnpm --filter @workspace/db run push-force", {
+      cwd: root,
+      env: { ...process.env },
+      stdio: "pipe",
+      timeout: 60_000,
+    });
+    logger.info("DB schema auto-synced via drizzle-kit push");
+    return true;
+  } catch (err: any) {
+    const stderr = err.stderr?.toString() ?? "";
+    logger.warn({ msg: stderr.slice(0, 200) }, "drizzle-kit push failed — falling back to SQL");
+    return false;
+  }
+}
+
+// ── Fallback: raw SQL for tables + missing columns ────────────────────────────
+// Each entry: [tableName, columnName, columnDef]
+// Safe to run every startup — IF NOT EXISTS is idempotent.
+const TABLES: string[] = [
   `CREATE TABLE IF NOT EXISTS "bookmarks" ("id" serial PRIMARY KEY NOT NULL,"session_id" text NOT NULL,"slug" text NOT NULL,"api_name" text NOT NULL,"query_val" text NOT NULL,"label" text,"created_at" timestamp DEFAULT now() NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS "broadcasts" ("id" serial PRIMARY KEY NOT NULL,"title" text NOT NULL,"message" text NOT NULL,"type" text DEFAULT 'info' NOT NULL,"created_at" timestamp DEFAULT now() NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS "coupon_uses" ("id" serial PRIMARY KEY NOT NULL,"coupon_code" text NOT NULL,"session_id" text NOT NULL,"credits_awarded" integer NOT NULL,"used_at" timestamp DEFAULT now() NOT NULL)`,
@@ -17,24 +53,78 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS "scheduled_broadcasts" ("id" serial PRIMARY KEY NOT NULL,"title" text NOT NULL,"message" text NOT NULL,"type" text DEFAULT 'info' NOT NULL,"scheduled_at" timestamp NOT NULL,"sent" boolean DEFAULT false NOT NULL,"sent_at" timestamp,"created_at" timestamp DEFAULT now() NOT NULL)`,
 ];
 
+// ALTER TABLE ADD COLUMN IF NOT EXISTS — handles NEW columns added to EXISTING tables.
+// Format: [table, column, definition]
+// When you add a new column to schema.ts, add one line here too.
+const COLUMNS: [string, string, string][] = [
+  // craka_users — all non-id columns listed so any new column addition only needs one line here
+  ["craka_users", "session_id",           "text NOT NULL DEFAULT ''"],
+  ["craka_users", "referral_code",        "text NOT NULL DEFAULT ''"],
+  ["craka_users", "referred_by",          "text"],
+  ["craka_users", "is_premium",           "boolean NOT NULL DEFAULT false"],
+  ["craka_users", "premium_plan",         "text"],
+  ["craka_users", "premium_expires_at",   "timestamp"],
+  ["craka_users", "credits_earned",       "integer NOT NULL DEFAULT 0"],
+  ["craka_users", "total_referrals",      "integer NOT NULL DEFAULT 0"],
+  ["craka_users", "google_id",            "text"],
+  ["craka_users", "email",               "text"],
+  ["craka_users", "display_name",         "text"],
+  ["craka_users", "avatar_url",           "text"],
+  ["craka_users", "email_verified",       "boolean NOT NULL DEFAULT false"],
+  ["craka_users", "magic_link_token",     "text"],
+  ["craka_users", "magic_link_expiry",    "timestamp"],
+  ["craka_users", "password_hash",        "text"],
+  ["craka_users", "password_reset_token", "text"],
+  ["craka_users", "password_reset_expiry","timestamp"],
+  ["craka_users", "two_fa_secret",        "text"],
+  ["craka_users", "two_fa_enabled",       "boolean NOT NULL DEFAULT false"],
+  ["craka_users", "is_banned",            "boolean NOT NULL DEFAULT false"],
+  ["craka_users", "ban_reason",           "text"],
+  ["craka_users", "created_at",           "timestamp NOT NULL DEFAULT now()"],
+  // bookmarks
+  ["bookmarks", "label",                  "text"],
+  // osint_apis
+  ["osint_apis", "pattern",              "text"],
+  ["osint_apis", "category",             "text NOT NULL DEFAULT 'Miscellaneous'"],
+  ["osint_apis", "credits",              "integer NOT NULL DEFAULT 1"],
+  ["osint_apis", "cache_ttl_seconds",    "integer NOT NULL DEFAULT 1800"],
+  // scheduled_broadcasts
+  ["scheduled_broadcasts", "sent_at",    "timestamp"],
+  // login_logs
+  ["login_logs", "method",              "text NOT NULL DEFAULT 'google'"],
+];
+
+async function runFallbackMigrations(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    logger.info("Running fallback SQL migrations...");
+    for (const stmt of TABLES) {
+      try { await client.query(stmt); } catch (e: any) {
+        if (!e.message?.includes("already exists")) logger.warn({ msg: e.message }, "CREATE TABLE skipped");
+      }
+    }
+    for (const [table, col, def] of COLUMNS) {
+      try {
+        await client.query(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "${col}" ${def}`);
+      } catch (_) {}
+    }
+    logger.info("Fallback SQL migrations complete");
+  } finally {
+    client.release();
+  }
+}
+
+// ── Main entry point ───────────────────────────────────────────────────────────
 export async function runMigrations(): Promise<void> {
   try {
-    const client = await pool.connect();
-    try {
-      logger.info("Running DB migrations...");
-      for (const stmt of TABLES) {
-        try {
-          await client.query(stmt);
-        } catch (err: any) {
-          if (!err.message?.includes("already exists")) {
-            logger.warn({ msg: err.message }, "Migration stmt skipped");
-          }
-        }
-      }
-      logger.info("DB migrations complete");
-    } finally {
-      client.release();
+    const root = findWorkspaceRoot();
+    if (root) {
+      const ok = await pushSchema(root);
+      if (ok) return;
+    } else {
+      logger.warn("Workspace root not found — skipping drizzle-kit push");
     }
+    await runFallbackMigrations();
   } catch (err: any) {
     logger.error({ msg: err.message }, "DB migration failed — server will start anyway");
   }
