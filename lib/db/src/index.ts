@@ -16,11 +16,16 @@ if (!dbUrl) {
   );
 }
 
-const isLocal = dbUrl.includes("localhost") || dbUrl.includes("127.0.0.1");
+// Skip SSL for local or Render-internal connections (no dot in hostname = internal)
+const hostMatch = dbUrl.match(/@([^:/]+)/);
+const hostname = hostMatch?.[1] ?? "";
+const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
+const isRenderInternal = !hostname.includes(".");
+const needsSsl = !isLocal && !isRenderInternal;
 
 export const pool = new Pool({
   connectionString: dbUrl,
-  ssl: isLocal ? false : { rejectUnauthorized: false },
+  ssl: needsSsl ? { rejectUnauthorized: false } : false,
 });
 export const db = drizzle(pool, { schema });
 
