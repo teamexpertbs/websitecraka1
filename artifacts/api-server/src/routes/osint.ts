@@ -283,7 +283,7 @@ router.get("/osint/stats", async (req, res) => {
   
   const categoryBreakdown = await db.select({
     category: osintApis.category,
-    count: sql`count(\${osintHistory.id})`,
+    count: sql`count(${osintHistory.id})`,
   }).from(osintHistory).leftJoin(osintApis, eq(osintHistory.slug, osintApis.slug)).groupBy(osintApis.category);
   
   const topApis = await db.select({
