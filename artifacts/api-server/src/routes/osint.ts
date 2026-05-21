@@ -127,17 +127,6 @@ router.get("/osint/apis", async (req, res) => {
   }
 });
 
-router.get("/osint/debug-db", async (_req, res) => {
-  try {
-    const { pool } = await import("@workspace/db");
-    const client = await pool.connect();
-    const r = await client.query("SELECT count(*) FROM osint_apis");
-    client.release();
-    res.json({ ok: true, osint_apis_count: r.rows[0].count });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message ?? String(err) });
-  }
-});
 
 router.post("/osint/lookup", async (req, res) => {
   const { slug, query: rawQuery, sessionId } = req.body as { slug: string; query: string; sessionId?: string };
