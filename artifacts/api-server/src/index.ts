@@ -23,6 +23,31 @@ const { runMigrations } = await import("./lib/migrate");
 
 await runMigrations();
 
+// ── Scheduled Broadcasts Processor ───────────────────────────────────────────
+// Runs every 60s, sends any scheduled broadcasts whose time has come
+(async () => {
+  const { db: dbInst, scheduledBroadcasts, broadcasts: broadcastsTable } = await import("@workspace/db");
+  const { eq, lte, sql } = await import("drizzle-orm");
+  const processScheduled = async () => {
+    try {
+      const due = await dbInst.select().from(scheduledBroadcasts).where(
+        sql`${scheduledBroadcasts.sent} = false AND ${scheduledBroadcasts.scheduledAt} <= NOW()`
+      );
+      for (const sb of due) {
+        await dbInst.insert(broadcastsTable).values({ title: sb.title, message: sb.message, type: sb.type });
+        await dbInst.update(scheduledBroadcasts).set({ sent: true, sentAt: new Date() }).where(eq(scheduledBroadcasts.id, sb.id));
+      }
+      if (due.length > 0) {
+        const { logger: log } = await import("./lib/logger");
+        log.info({ count: due.length }, "Scheduled broadcasts sent");
+      }
+    } catch (_) {}
+  };
+  setInterval(processScheduled, 60_000);
+  processScheduled();
+})();
+// ─────────────────────────────────────────────────────────────────────────────
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
