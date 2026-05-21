@@ -8,11 +8,49 @@ import QRCode from "qrcode";
 
 const router = Router();
 
-const ADMIN_USER = process.env.ADMIN_USER || "admin";
-const ADMIN_PASS = process.env.ADMIN_PASS || "craka@admin123";
+// ── 2FA helpers — DB-backed so they survive restarts ──────────────────────────
+const ADMIN_2FA_SECRET_KEY = "admin_config:2fa_secret";
+const ADMIN_2FA_ENABLED_KEY = "admin_config:2fa_enabled";
 
-let stored2FASecret: string | null = null;
-let twoFAEnabled = false;
+async function get2FAConfig(): Promise<{ secret: string | null; enabled: boolean }> {
+  try {
+    const rows = await db.select().from(osintCache).where(
+      sql`${osintCache.slug} = 'admin_config'`
+    );
+    const secretRow = rows.find(r => r.queryVal === "2fa_secret");
+    const enabledRow = rows.find(r => r.queryVal === "2fa_enabled");
+    return {
+      secret: secretRow?.result ?? null,
+      enabled: enabledRow?.result === "true",
+    };
+  } catch { return { secret: null, enabled: false }; }
+}
+
+async function save2FAConfig(secret: string, enabled: boolean) {
+  // Upsert secret
+  const existing = await db.select().from(osintCache).where(
+    sql`${osintCache.slug} = 'admin_config' AND ${osintCache.queryVal} = '2fa_secret'`
+  ).then(r => r[0]);
+  if (existing) {
+    await db.update(osintCache).set({ result: secret }).where(eq(osintCache.id, existing.id));
+  } else {
+    await db.insert(osintCache).values({ slug: "admin_config", queryVal: "2fa_secret", result: secret });
+  }
+  // Upsert enabled flag
+  const existingFlag = await db.select().from(osintCache).where(
+    sql`${osintCache.slug} = 'admin_config' AND ${osintCache.queryVal} = '2fa_enabled'`
+  ).then(r => r[0]);
+  if (existingFlag) {
+    await db.update(osintCache).set({ result: String(enabled) }).where(eq(osintCache.id, existingFlag.id));
+  } else {
+    await db.insert(osintCache).values({ slug: "admin_config", queryVal: "2fa_enabled", result: String(enabled) });
+  }
+}
+
+async function disable2FAConfig() {
+  await db.delete(osintCache).where(sql`${osintCache.slug} = 'admin_config'`);
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 router.post("/admin/login", async (req, res) => {
   try {
@@ -28,12 +66,13 @@ router.post("/admin/login", async (req, res) => {
       res.status(401).json({ success: false, message: "Invalid credentials" });
       return;
     }
-    if (twoFAEnabled && stored2FASecret) {
+    const { secret, enabled } = await get2FAConfig();
+    if (enabled && secret) {
       if (!totpToken) {
         res.json({ success: false, requires2FA: true, message: "2FA code required" });
         return;
       }
-      const valid = speakeasy.totp.verify({ secret: stored2FASecret, encoding: "base32", token: String(totpToken), window: 1 });
+      const valid = speakeasy.totp.verify({ secret, encoding: "base32", token: String(totpToken), window: 1 });
       if (!valid) {
         res.status(401).json({ success: false, message: "Invalid 2FA code" });
         return;
@@ -460,17 +499,25 @@ router.delete("/admin/scheduled-broadcasts/:id", adminAuthMiddleware, async (req
 });
 
 router.get("/admin/2fa/status", adminAuthMiddleware, async (req, res) => {
-  res.json({ enabled: twoFAEnabled });
+  try {
+    const { enabled, secret } = await get2FAConfig();
+    res.json({ enabled, hasSecret: !!secret });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 router.post("/admin/2fa/setup", adminAuthMiddleware, async (req, res) => {
   try {
-    const secret = speakeasy.generateSecret({ name: "CraKa OSINT Admin", length: 20 });
+    const secret = speakeasy.generateSecret({
+      name: `CraKa OSINT (${process.env.ADMIN_USER || "admin"})`,
+      issuer: "CraKa OSINT Admin",
+      length: 20,
+    });
     const qrCode = await QRCode.toDataURL(secret.otpauth_url || "");
     res.json({
       secret: secret.base32,
       qrCode,
-      instructions: "Scan this QR code with Google Authenticator or Authy. After scanning, enter the 6-digit code below to verify and activate 2FA.",
+      otpauthUrl: secret.otpauth_url,
+      instructions: "1. Google Authenticator / Authy mein QR scan karo\n2. 6-digit code neeche enter karo verify karne ke liye\n3. Verify hone ke baad 2FA automatically enable ho jaayega\n⚠️ Secret key ko backup mein save karo!",
     });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -479,12 +526,30 @@ router.post("/admin/2fa/verify", adminAuthMiddleware, async (req, res) => {
   try {
     const { secret, token: totpCode } = req.body;
     if (!secret || !totpCode) { res.status(400).json({ error: "secret and token are required" }); return; }
-    const valid = speakeasy.totp.verify({ secret, encoding: "base32", token: String(totpCode), window: 1 });
+    const valid = speakeasy.totp.verify({ secret, encoding: "base32", token: String(totpCode), window: 2 });
     if (valid) {
-      stored2FASecret = secret;
-      twoFAEnabled = true;
+      await save2FAConfig(secret, true);
     }
-    res.json({ valid, message: valid ? "✅ 2FA verified and enabled successfully! Save your secret key as backup." : "❌ Invalid code. Please try again." });
+    res.json({
+      valid,
+      message: valid
+        ? "✅ 2FA verified & enabled! Server restart ke baad bhi active rahega. Secret key backup mein save karo."
+        : "❌ Invalid code. Authenticator app mein fresh code dekho aur dobara try karo.",
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/admin/2fa/disable", adminAuthMiddleware, async (req, res) => {
+  try {
+    const { totpCode } = req.body;
+    const { secret, enabled } = await get2FAConfig();
+    if (!enabled) { res.json({ success: true, message: "2FA was not enabled." }); return; }
+    if (secret && totpCode) {
+      const valid = speakeasy.totp.verify({ secret, encoding: "base32", token: String(totpCode), window: 2 });
+      if (!valid) { res.status(401).json({ error: "Invalid 2FA code. Cannot disable." }); return; }
+    }
+    await disable2FAConfig();
+    res.json({ success: true, message: "2FA disabled successfully." });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
