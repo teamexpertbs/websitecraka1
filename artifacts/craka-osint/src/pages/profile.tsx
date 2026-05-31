@@ -33,7 +33,14 @@ function useDeleteBookmark() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, sessionId }: { id: number; sessionId: string }) => {
-      await customFetch(`/api/user/bookmarks/${id}?sessionId=${sessionId}`, { method: "DELETE" });
+      const response = await fetch(`/api/user/bookmarks/${id}?sessionId=${encodeURIComponent(sessionId)}`, { 
+        method: "DELETE" 
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || `Delete failed with status ${response.status}`);
+      }
+      return response.json();
     },
     onSuccess: (_, { sessionId }) => {
       qc.invalidateQueries({ queryKey: ["bookmarks", sessionId] });
@@ -152,10 +159,19 @@ export default function Profile() {
   };
 
   const handleDeleteBookmark = (id: number) => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      toast({ title: "Error", description: "Session not found", variant: "destructive" });
+      return;
+    }
     deleteBookmark.mutate({ id, sessionId }, {
-      onSuccess: () => toast({ title: "Bookmark removed" }),
-      onError: () => toast({ title: "Failed to remove bookmark", variant: "destructive" }),
+      onSuccess: () => {
+        toast({ title: "Success", description: "Bookmark removed" });
+      },
+      onError: (err: any) => {
+        const msg = err?.message || "Failed to remove bookmark";
+        console.error("Delete bookmark error:", err);
+        toast({ title: "Failed to remove bookmark", description: msg, variant: "destructive" });
+      },
     });
   };
 
@@ -368,7 +384,7 @@ export default function Profile() {
                     <button
                       onClick={() => handleDeleteBookmark(bm.id)}
                       disabled={deleteBookmark.isPending}
-                      className="p-2 -m-2 text-muted-foreground hover:text-destructive transition-colors"
+                      className="p-2 -m-2 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
