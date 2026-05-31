@@ -229,11 +229,11 @@ export default function Profile() {
                 <h2 className="text-lg font-bold text-foreground truncate">{signedInUser?.name || "Anonymous User"}</h2>
                 {signedInUser?.email && <p className="text-sm text-muted-foreground truncate">{signedInUser.email}</p>}
                 <div className="flex flex-wrap gap-2 mt-2">
-                  <Badge variant="outline" className={`text-xs font-semibold ${premiumBadgeColor}`}>
-                    {isPremiumUser ? <><Crown className="w-3 h-3 mr-1" />{activePlanLabel || "Premium"}</> : "Free Plan"}
+                  <Badge variant="outline" className={`text-xs font-semibold whitespace-nowrap overflow-hidden text-ellipsis max-w-full ${premiumBadgeColor}`}>
+                    {isPremiumUser ? <><Crown className="w-3 h-3 mr-1 shrink-0" /><span className="truncate">{activePlanLabel || "Premium"}</span></> : "Free Plan"}
                   </Badge>
                   {signedInUser?.referralCode && (
-                    <Badge variant="outline" className="text-xs font-mono border-border text-muted-foreground">
+                    <Badge variant="outline" className="text-xs font-mono border-border text-muted-foreground whitespace-nowrap">
                       {signedInUser.referralCode}
                     </Badge>
                   )}
