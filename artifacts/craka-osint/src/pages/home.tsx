@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useListApis, usePerformLookup } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import {
   Terminal, Search, ShieldAlert, Cpu, CheckCircle2, AlertCircle,
-  Copy, Check, Download, Share2, Languages, ExternalLink
+  Copy, Check, Download, Share2, Languages, ExternalLink, Bookmark, BookmarkCheck
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -100,17 +100,40 @@ function hindiValue(value: string): string {
 interface ResultRow { key: string; value: string }
 
 function ResultViewer({
-  rows, apiName, query, cached
+  rows, apiName, query, cached, slug, sessionId
 }: {
   rows: ResultRow[];
   apiName: string;
   query: string;
   cached: boolean;
+  slug?: string;
+  sessionId?: string;
 }) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showHindi, setShowHindi] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
   const { toast } = useToast();
+
+  const handleBookmark = async () => {
+    if (!slug || !sessionId) {
+      toast({ title: "Sign in karo", description: "Bookmark karne ke liye login zaroori hai.", variant: "destructive" });
+      return;
+    }
+    try {
+      const res = await fetch("/api/bookmarks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, slug, apiName, queryVal: query }),
+      });
+      if (res.ok) {
+        setBookmarked(true);
+        toast({ title: "Bookmarked!", description: "Result save ho gaya." });
+      }
+    } catch {
+      toast({ title: "Error", description: "Bookmark nahi hua.", variant: "destructive" });
+    }
+  };
 
   const display = rows.filter(r => r.key !== "Developer" && r.value !== "—");
 
@@ -203,6 +226,18 @@ function ResultViewer({
           <Share2 className="w-3.5 h-3.5" />
           Share
         </button>
+        <button
+          onClick={handleBookmark}
+          disabled={bookmarked}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold border transition-all ${
+            bookmarked
+              ? "bg-yellow-400/10 border-yellow-400/40 text-yellow-400"
+              : "bg-card border-border text-muted-foreground hover:border-yellow-400/40 hover:text-yellow-400"
+          }`}
+        >
+          {bookmarked ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+          {bookmarked ? "Saved" : "Bookmark"}
+        </button>
         {cached && (
           <span className="ml-auto flex items-center gap-1 text-[10px] text-yellow-400/70 border border-yellow-400/20 bg-yellow-400/5 rounded px-2 py-1">
             CACHED
@@ -275,6 +310,15 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<any>(null);
   const [lastQuery, setLastQuery] = useState("");
+
+  // Pre-fill from URL params (?slug=xxx&q=yyy) — used by Re-run from Logs and Try-it from Tools
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const slugParam = params.get("slug");
+    const qParam = params.get("q");
+    if (slugParam) setSelectedApiSlug(slugParam);
+    if (qParam) setQuery(qParam);
+  }, []);
 
   const filteredApis = apis.filter(api =>
     api.isActive && (activeCategory === "All" || api.category === activeCategory)
@@ -486,6 +530,8 @@ export default function Home() {
                       apiName={result.apiName}
                       query={lastQuery}
                       cached={result.cached}
+                      slug={selectedApiSlug || ""}
+                      sessionId={localStorage.getItem("craka_session_id") || ""}
                     />
                   ) : (
                     <div className="p-6 text-destructive text-sm">

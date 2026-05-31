@@ -230,6 +230,41 @@ router.post("/user/redeem-coupon", async (req, res): Promise<void> => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Bookmarks ──────────────────────────────────────────────────────────────────
+router.get("/bookmarks", async (req, res): Promise<void> => {
+  try {
+    const sessionId = String(req.query.sessionId || "").trim();
+    if (!sessionId) { res.status(400).json({ error: "sessionId required" }); return; }
+    const items = await db.select().from(bookmarks)
+      .where(eq(bookmarks.sessionId, sessionId))
+      .orderBy(desc(bookmarks.createdAt));
+    res.json(items);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/bookmarks", async (req, res): Promise<void> => {
+  try {
+    const { sessionId, slug, apiName, queryVal, label } = req.body;
+    if (!sessionId || !slug || !apiName || !queryVal) {
+      res.status(400).json({ error: "sessionId, slug, apiName, queryVal required" }); return;
+    }
+    const result = await db.insert(bookmarks)
+      .values({ sessionId, slug, apiName, queryVal, label: label || null })
+      .returning();
+    res.json(result[0]);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete("/bookmarks/:id", async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    const sessionId = String(req.query.sessionId || "").trim();
+    if (!sessionId || !id) { res.status(400).json({ error: "id and sessionId required" }); return; }
+    await db.delete(bookmarks).where(and(eq(bookmarks.id, id), eq(bookmarks.sessionId, sessionId)));
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 // DELETE user account (requires user JWT)
 router.delete("/user/account", async (req, res): Promise<void> => {
   try {

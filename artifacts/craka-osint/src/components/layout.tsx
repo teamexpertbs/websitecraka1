@@ -17,6 +17,8 @@ import {
   LogIn,
   Bell,
   User,
+  Bookmark,
+  Layers,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -63,6 +65,8 @@ export function Layout({ children }: LayoutProps) {
     { href: "/stats",        labelKey: "nav.stats",        fallback: "Stats",        icon: BarChart2 },
     { href: "/tools",        labelKey: "nav.tools",        fallback: "Tools",        icon: Wrench },
     { href: "/transactions", labelKey: "nav.transactions", fallback: "Transactions", icon: Receipt },
+    { href: "/bookmarks",    labelKey: "nav.bookmarks",    fallback: "Bookmarks",    icon: Bookmark },
+    { href: "/bulk",         labelKey: "nav.bulk",         fallback: "Bulk Lookup",  icon: Layers },
   ];
 
   const ThemeAndLangControls = (

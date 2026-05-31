@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { History, Search, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Lock, Download } from "lucide-react";
+import { History, Search, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Lock, Download, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Logs() {
@@ -120,6 +120,7 @@ export default function Logs() {
                 <TableHead className="text-xs">API</TableHead>
                 <TableHead className="text-xs">Query</TableHead>
                 <TableHead className="text-right text-xs">Status</TableHead>
+                <TableHead className="text-right text-xs w-20">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -130,11 +131,12 @@ export default function Logs() {
                     <TableCell><div className="h-4 bg-muted/50 rounded w-24 animate-pulse" /></TableCell>
                     <TableCell><div className="h-4 bg-muted/50 rounded w-48 animate-pulse" /></TableCell>
                     <TableCell className="text-right"><div className="h-4 bg-muted/50 rounded w-16 ml-auto animate-pulse" /></TableCell>
+                    <TableCell />
                   </TableRow>
                 ))
               ) : filteredEntries.length === 0 ? (
                 <TableRow className="border-border">
-                  <TableCell colSpan={4} className="text-center py-10 text-muted-foreground text-sm">
+                  <TableCell colSpan={5} className="text-center py-10 text-muted-foreground text-sm">
                     No history records found. Start a search on the Terminal to see logs here.
                   </TableCell>
                 </TableRow>
@@ -160,6 +162,17 @@ export default function Logs() {
                           <XCircle className="w-3 h-3" /> FAIL
                         </Badge>
                       )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                        title="Re-run this search"
+                        onClick={() => { window.location.href = `/?slug=${encodeURIComponent(entry.slug)}&q=${encodeURIComponent(entry.queryVal)}`; }}
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))

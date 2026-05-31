@@ -23,6 +23,8 @@ import VerifyEmail from "@/pages/verify-email";
 import ResetPassword from "@/pages/reset-password";
 import Profile from "@/pages/profile";
 import Notifications from "@/pages/notifications";
+import Bookmarks from "@/pages/bookmarks";
+import Bulk from "@/pages/bulk";
 
 const queryClient = new QueryClient();
 
@@ -111,6 +113,8 @@ function Router() {
             <Route path="/refer" component={Refer} />
             <Route path="/profile" component={Profile} />
             <Route path="/notifications" component={Notifications} />
+            <Route path="/bookmarks" component={Bookmarks} />
+            <Route path="/bulk" component={Bulk} />
             <Route component={NotFound} />
           </Switch>
         </AuthGuard>

@@ -9,7 +9,6 @@ services:
     buildCommand: |
       npm install -g pnpm@10.26.1 &&
       pnpm install --no-frozen-lockfile &&
-      pnpm --filter @workspace/db run push-force &&
       pnpm --filter @workspace/craka-osint run build &&
       pnpm --filter @workspace/api-server run build
     startCommand: cd artifacts/api-server && pnpm run start
@@ -21,7 +20,7 @@ services:
         value: "10000"
       - key: DATABASE_URL
         sync: false
-      - key: NEON_DATABASE_URL
+      - key: COCKROACH_DATABASE_URL
         sync: false
       - key: ADMIN_USER
         sync: false
