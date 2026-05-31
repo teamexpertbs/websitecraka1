@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   User, Star, Gift, Coins, Bookmark, Tag, Trash2,
   Crown, Zap, ExternalLink, Ticket, CheckCircle2, Users,
-  AlertTriangle, X
+  AlertTriangle, X, Eye, EyeOff
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -113,6 +113,7 @@ export default function Profile() {
   const [referralInput, setReferralInput] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [expandedBookmarkId, setExpandedBookmarkId] = useState<number | null>(null);
 
   const { data: bookmarkList = [], isLoading: bookmarksLoading } = useBookmarks(sessionId);
   const { data: userMe } = useUserMe(sessionId);
@@ -368,28 +369,45 @@ export default function Profile() {
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {bookmarkList.map((bm: any) => (
-                  <div key={bm.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors">
-                    <Tag className="w-4 h-4 text-primary/60 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{bm.label || bm.queryVal}</p>
-                      <p className="text-xs text-muted-foreground">{bm.apiName}</p>
+                {bookmarkList.map((bm: any) => {
+                  const isExpanded = expandedBookmarkId === bm.id;
+                  return (
+                    <div key={bm.id} className="flex flex-col hover:bg-muted/10 transition-colors">
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <Tag className="w-4 h-4 text-primary/60 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{bm.label || bm.queryVal}</p>
+                          <p className="text-xs text-muted-foreground">{bm.apiName}</p>
+                        </div>
+                        {bm.response && (
+                          <button
+                            onClick={() => setExpandedBookmarkId(isExpanded ? null : bm.id)}
+                            className={`p-2 -m-2 text-muted-foreground transition-colors hover:text-primary ${
+                              isExpanded ? "text-primary" : ""
+                            }`}
+                            title={isExpanded ? "Hide Details" : "View Details"}
+                          >
+                            {isExpanded ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteBookmark(bm.id)}
+                          disabled={deleteBookmark.isPending}
+                          className="p-2 -m-2 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {isExpanded && bm.response && (
+                        <div className="px-4 pb-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <pre className="text-[11px] text-foreground font-mono bg-black/40 border border-border/30 p-2.5 rounded-md whitespace-pre-wrap break-words max-h-[250px] overflow-y-auto leading-relaxed">
+                            {bm.response}
+                          </pre>
+                        </div>
+                      )}
                     </div>
-                    {/* Fix 7: remove mr-2 spacing (parent gap handles it) */}
-                    <Link href={`/?slug=${bm.slug}&q=${encodeURIComponent(bm.queryVal)}`}
-                      className="p-2 -m-2 shrink-0 text-muted-foreground hover:text-primary">
-                      <ExternalLink className="w-4 h-4" />
-                    </Link>
-                    {/* Fix 7: larger tap target for delete on mobile */}
-                    <button
-                      onClick={() => handleDeleteBookmark(bm.id)}
-                      disabled={deleteBookmark.isPending}
-                      className="p-2 -m-2 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
