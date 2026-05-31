@@ -25,7 +25,6 @@ import { customFetch } from "@workspace/api-client-react";
 import { useAuthStore } from "@/lib/auth";
 import { useUserStore } from "@/lib/user-store";
 import { TokenBadge } from "@/components/token-badge";
-import { UserAvatar } from "@/components/user-avatar";
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { useEnsureUserInitialized } from "@/lib/user";
 import { useTheme } from "@/lib/theme";
@@ -296,7 +295,6 @@ export function Layout({ children }: LayoutProps) {
           </div>
           <div className="ml-auto flex items-center gap-2">
             {ThemeAndLangControls}
-            <UserAvatar compact />
             <TokenBadge compact />
           </div>
         </div>
