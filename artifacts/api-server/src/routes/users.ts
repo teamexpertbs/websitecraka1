@@ -135,13 +135,13 @@ router.get("/user/bookmarks", async (req, res): Promise<void> => {
 // POST create bookmark
 router.post("/user/bookmarks", async (req, res): Promise<void> => {
   try {
-    const { sessionId, slug, apiName, queryVal, label } = req.body;
+    const { sessionId, slug, apiName, queryVal, label, response } = req.body;
     if (!sessionId || !slug || !apiName || !queryVal) {
       res.status(400).json({ error: "sessionId, slug, apiName, queryVal are required" });
       return;
     }
     const [created] = await db.insert(bookmarks).values({
-      sessionId, slug, apiName, queryVal, label: label || null,
+      sessionId, slug, apiName, queryVal, label: label || null, response: response || null,
     }).returning();
     res.json({ ...created, createdAt: created.createdAt.toISOString() });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -244,12 +244,12 @@ router.get("/bookmarks", async (req, res): Promise<void> => {
 
 router.post("/bookmarks", async (req, res): Promise<void> => {
   try {
-    const { sessionId, slug, apiName, queryVal, label } = req.body;
+    const { sessionId, slug, apiName, queryVal, label, response } = req.body;
     if (!sessionId || !slug || !apiName || !queryVal) {
       res.status(400).json({ error: "sessionId, slug, apiName, queryVal required" }); return;
     }
     const result = await db.insert(bookmarks)
-      .values({ sessionId, slug, apiName, queryVal, label: label || null })
+      .values({ sessionId, slug, apiName, queryVal, label: label || null, response: response || null })
       .returning();
     res.json(result[0]);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
