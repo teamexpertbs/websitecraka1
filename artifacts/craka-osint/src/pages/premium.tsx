@@ -164,7 +164,7 @@ export default function Premium() {
             <Crown className="w-3.5 h-3.5" />
             Premium Membership
           </div>
-          <h1 className="text-4xl font-black text-foreground">
+          <h1 className="text-2xl sm:text-4xl font-black text-foreground">
             Unlock the Full{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-yellow-400">
               CraKa OSINT
@@ -194,7 +194,7 @@ export default function Premium() {
           </div>
         )}
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-3 gap-6 pt-4">
           {PLANS.map((plan) => (
             <div
               key={plan.name}
