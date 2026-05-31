@@ -4,7 +4,7 @@
   "license": "MIT",
   "scripts": {
     "db:push": "pnpm --filter @workspace/db run push",
-    "build": "pnpm run db:push && pnpm run typecheck && pnpm -r --if-present run build",
+    "build": "pnpm --filter @workspace/craka-osint run build && pnpm --filter @workspace/api-server run build",
     "start": "cd artifacts/api-server && pnpm run start",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
