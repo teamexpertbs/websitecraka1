@@ -124,7 +124,7 @@ function ResultViewer({
       const res = await fetch("/api/user/bookmarks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, slug, apiName, queryVal: query }),
+        body: JSON.stringify({ sessionId, slug, apiName, queryVal: query, response: report }),
       });
       if (res.ok) {
         setBookmarked(true);
