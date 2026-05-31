@@ -31,7 +31,7 @@ export default function Bookmarks() {
   const fetchBookmarks = async () => {
     if (!sessionId) { setLoading(false); return; }
     try {
-      const res = await fetch(`/api/bookmarks?sessionId=${encodeURIComponent(sessionId)}`);
+      const res = await fetch(`/api/user/bookmarks?sessionId=${encodeURIComponent(sessionId)}`);
       const data = await res.json();
       setItems(Array.isArray(data) ? data : []);
     } catch {
@@ -46,10 +46,13 @@ export default function Bookmarks() {
   const handleDelete = async (id: number) => {
     setDeletingId(id);
     try {
-      await fetch(`/api/bookmarks/${id}?sessionId=${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+      const res = await fetch(`/api/user/bookmarks/${id}?sessionId=${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+      if (!res.ok) {
+        throw new Error("Delete failed");
+      }
       setItems(prev => prev.filter(b => b.id !== id));
       toast({ title: "Deleted", description: "Bookmark remove ho gaya." });
-    } catch {
+    } catch (err) {
       toast({ title: "Error", description: "Delete nahi hua.", variant: "destructive" });
     } finally {
       setDeletingId(null);
