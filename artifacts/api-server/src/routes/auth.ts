@@ -309,6 +309,47 @@ router.get("/auth/me", async (req, res): Promise<void> => {
 });
 
 /**
+ * POST /api/auth/refresh
+ * Silently refresh a valid user token — extends session by another 30d.
+ */
+router.post("/auth/refresh", async (req, res): Promise<void> => {
+  try {
+    const auth = req.headers["authorization"];
+    if (!auth?.startsWith("Bearer ")) {
+      res.status(401).json({ error: "Missing authorization header" });
+      return;
+    }
+    const token = auth.slice(7);
+    const jwtPayload = verifyUserToken(token);
+    if (!jwtPayload) {
+      res.status(401).json({ error: "Invalid or expired token" });
+      return;
+    }
+    const user = await db
+      .select()
+      .from(crakaUsers)
+      .where(eq(crakaUsers.sessionId, jwtPayload.sessionId))
+      .limit(1)
+      .then((r) => r[0] ?? null);
+    if (!user || user.isBanned) {
+      res.status(401).json({ error: "User not found or suspended" });
+      return;
+    }
+    const newToken = generateUserToken({
+      sessionId: user.sessionId,
+      googleId: user.googleId ?? "",
+      email: user.email,
+      name: user.displayName,
+      avatarUrl: user.avatarUrl ?? undefined,
+    });
+    res.json({ success: true, token: newToken });
+  } catch (err) {
+    logger.error({ err }, "Error in /auth/refresh");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
  * POST /api/auth/logout
  * Client-side only — just confirm logout (JWT is stateless).
  */

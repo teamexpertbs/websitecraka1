@@ -30,7 +30,7 @@ const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const PUBLIC_ROUTES = ["/login", "/forgot-password", "/auth/magic", "/verify-email", "/reset-password"];
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { signedInUser, userToken, logout, _hasHydrated } = useUserStore();
+  const { signedInUser, userToken, logout, setUserToken, _hasHydrated } = useUserStore();
   const [location] = useLocation();
   const [validated, setValidated] = useState(false);
 
@@ -42,15 +42,36 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Validate token against server — catches deleted accounts
+    // Validate token against server — catches deleted/banned accounts
     fetch(`${API_BASE}/api/auth/me`, {
       headers: { Authorization: `Bearer ${userToken}` },
     })
-      .then((res) => {
+      .then(async (res) => {
         if (res.status === 401 || res.status === 404) {
           logout();
+          setValidated(true);
+          return;
         }
         setValidated(true);
+
+        // Silently refresh token if it expires within 7 days
+        try {
+          const payload = JSON.parse(atob(userToken.split(".")[1]));
+          const expiresIn = (payload.exp ?? 0) * 1000 - Date.now();
+          const sevenDays = 7 * 24 * 60 * 60 * 1000;
+          if (expiresIn > 0 && expiresIn < sevenDays) {
+            const refreshRes = await fetch(`${API_BASE}/api/auth/refresh`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${userToken}` },
+            });
+            if (refreshRes.ok) {
+              const { token: newToken } = await refreshRes.json();
+              if (newToken) setUserToken(newToken, signedInUser);
+            }
+          }
+        } catch {
+          // Non-critical — ignore refresh errors
+        }
       })
       .catch(() => {
         // Network error — keep user logged in (offline-friendly)
