@@ -136,6 +136,7 @@ export const bookmarks = pgTable("bookmarks", {
   apiName: text("api_name").notNull(),
   queryVal: text("query_val").notNull(),
   label: text("label"),
+  response: text("response"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
