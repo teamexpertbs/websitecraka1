@@ -90,14 +90,30 @@ router.post("/auth/resend-verification", async (req, res): Promise<void> => {
 router.post("/auth/reset-password", async (req, res): Promise<void> => {
   const { token, password } = req.body as { token?: string; password?: string };
   if (!token || !password) { res.status(400).json({ error: "Token and password required" }); return; }
-  if (password.length < 6) { res.status(400).json({ error: "Min 6 chars" }); return; }
+  if (password.length < 6) { res.status(400).json({ error: "Password must be at least 6 characters" }); return; }
   try {
-    const user = await db.select().from(crakaUsers).where(eq(crakaUsers.passwordResetToken, token)).limit(1).then(r => r[0] ?? null);
-    if (!user) { res.status(400).json({ error: "Invalid/expired link" }); return; }
-    if (!user.passwordResetExpiry || user.passwordResetExpiry < new Date()) { res.status(400).json({ error: "Link expired." }); return; }
+    // Hash the incoming token before DB lookup (tokens are stored as SHA256 hashes)
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const user = await db.select().from(crakaUsers).where(eq(crakaUsers.passwordResetToken, tokenHash)).limit(1).then(r => r[0] ?? null);
+    if (!user) {
+      // Could be: token never existed, already used (cleared), or wrong hash
+      logger.warn({ tokenPrefix: token.slice(0, 8) }, "reset-password: invalid or already-used token");
+      res.status(400).json({ error: "This reset link is invalid or has already been used. Please request a new one." });
+      return;
+    }
+    if (!user.passwordResetExpiry || user.passwordResetExpiry < new Date()) {
+      // Token expired — wipe it so it can't be brute-forced
+      await db.update(crakaUsers).set({ passwordResetToken: null, passwordResetExpiry: null }).where(eq(crakaUsers.id, user.id));
+      res.status(400).json({ error: "This reset link has expired. Please request a new one." });
+      return;
+    }
     const hash = await bcrypt.hash(password, 12);
-    await db.update(crakaUsers).set({ passwordHash: hash, passwordResetToken: null, passwordResetExpiry: null, emailVerified: true }).where(eq(crakaUsers.id, user.id));
-    res.json({ success: true, message: "Password updated!" });
+    // Clear token immediately (single-use) and update password
+    await db.update(crakaUsers)
+      .set({ passwordHash: hash, passwordResetToken: null, passwordResetExpiry: null, emailVerified: true })
+      .where(eq(crakaUsers.id, user.id));
+    logger.info({ userId: user.id, email: user.email }, "Password reset successful");
+    res.json({ success: true, message: "Password updated successfully!" });
   } catch (err) { logger.error({ err }, "reset-password error"); res.status(500).json({ error: "Internal server error" }); }
 });
 

@@ -74,13 +74,17 @@ const COLUMNS: [string, string, string][] = [
   ["craka_users", "magic_link_token",     "text"],
   ["craka_users", "magic_link_expiry",    "timestamp"],
   ["craka_users", "password_hash",        "text"],
-  ["craka_users", "password_reset_token", "text"],
-  ["craka_users", "password_reset_expiry","timestamp"],
-  ["craka_users", "two_fa_secret",        "text"],
+  ["craka_users", "password_reset_token",          "text"],
+  ["craka_users", "password_reset_expiry",         "timestamp"],
+  ["craka_users", "password_reset_request_count",  "integer NOT NULL DEFAULT 0"],
+  ["craka_users", "last_password_reset_request",   "timestamp"],
+  ["craka_users", "two_fa_secret",                 "text"],
   ["craka_users", "two_fa_enabled",       "boolean NOT NULL DEFAULT false"],
-  ["craka_users", "is_banned",            "boolean NOT NULL DEFAULT false"],
-  ["craka_users", "ban_reason",           "text"],
-  ["craka_users", "created_at",           "timestamp NOT NULL DEFAULT now()"],
+  ["craka_users", "is_banned",                     "boolean NOT NULL DEFAULT false"],
+  ["craka_users", "ban_reason",                    "text"],
+  ["craka_users", "free_credits_granted",          "integer NOT NULL DEFAULT 0"],
+  ["craka_users", "premium_credits_granted",       "integer NOT NULL DEFAULT 0"],
+  ["craka_users", "created_at",                    "timestamp NOT NULL DEFAULT now()"],
   // bookmarks
   ["bookmarks", "label",                  "text"],
   // osint_apis
@@ -114,13 +118,36 @@ async function runFallbackMigrations(): Promise<void> {
   }
 }
 
+// ── Ensure all expected columns exist (always runs, even after drizzle-kit push) ─
+// drizzle-kit push on this host reports success but silently skips ALTER TABLE
+// for new columns on existing tables. Running ADD COLUMN IF NOT EXISTS is safe
+// (idempotent) so we always do it as a safety net.
+async function ensureColumns(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    for (const [table, col, def] of COLUMNS) {
+      try {
+        await client.query(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "${col}" ${def}`);
+      } catch (_) {}
+    }
+    logger.info("Column ensure-pass complete");
+  } finally {
+    client.release();
+  }
+}
+
 // ── Main entry point ───────────────────────────────────────────────────────────
 export async function runMigrations(): Promise<void> {
   try {
     const root = findWorkspaceRoot();
     if (root) {
       const ok = await pushSchema(root);
-      if (ok) return;
+      if (ok) {
+        // drizzle-kit push succeeded but may have silently skipped new columns —
+        // always run ALTER TABLE IF NOT EXISTS as a safety net.
+        await ensureColumns();
+        return;
+      }
     } else {
       logger.warn("Workspace root not found — skipping drizzle-kit push");
     }

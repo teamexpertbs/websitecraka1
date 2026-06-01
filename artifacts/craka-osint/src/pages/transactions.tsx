@@ -11,7 +11,8 @@ import { useCurrentUser } from "@/lib/user";
 
 interface Txn {
   id: number;
-  type: "spend" | "refund" | "earn" | "grant" | "bonus" | "init";
+  type: "spend" | "refund" | "earn" | "grant" | "bonus" | "init" | "revoke" | "adjust";
+  source: string;
   amount: number;
   reason: string;
   balanceAfter: number;
@@ -27,6 +28,8 @@ const TYPE_ICON: Record<string, typeof ArrowDownCircle> = {
   grant: Crown,
   bonus: Sparkles,
   init: Sparkles,
+  revoke: ArrowDownCircle,
+  adjust: ArrowUpCircle,
 };
 
 const TYPE_TONE: Record<string, string> = {
@@ -36,6 +39,20 @@ const TYPE_TONE: Record<string, string> = {
   grant:  "text-yellow-400 border-yellow-500/30 bg-yellow-500/10",
   bonus:  "text-cyan-400 border-cyan-500/30 bg-cyan-500/10",
   init:   "text-cyan-400 border-cyan-500/30 bg-cyan-500/10",
+  revoke: "text-rose-400 border-rose-500/30 bg-rose-500/10",
+  adjust: "text-violet-400 border-violet-500/30 bg-violet-500/10",
+};
+
+const SOURCE_BADGE: Record<string, string> = {
+  free:     "text-sky-400 border-sky-500/30 bg-sky-500/10",
+  premium:  "text-yellow-400 border-yellow-500/30 bg-yellow-500/10",
+  referral: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10",
+  coupon:   "text-violet-400 border-violet-500/30 bg-violet-500/10",
+  admin:    "text-red-400 border-red-500/30 bg-red-500/10",
+  signup:   "text-sky-400 border-sky-500/30 bg-sky-500/10",
+  spend:    "text-muted-foreground border-border bg-muted/20",
+  refund:   "text-muted-foreground border-border bg-muted/20",
+  earn:     "text-emerald-400 border-emerald-500/30 bg-emerald-500/10",
 };
 
 export default function Transactions() {
@@ -129,6 +146,7 @@ export default function Transactions() {
                   <TableRow className="border-border hover:bg-transparent">
                     <TableHead className="whitespace-nowrap">{t("txn.col.time", "Time")}</TableHead>
                     <TableHead>{t("txn.col.type", "Type")}</TableHead>
+                    <TableHead>Source</TableHead>
                     <TableHead className="text-right">{t("txn.col.amount", "Amount")}</TableHead>
                     <TableHead>{t("txn.col.reason", "Reason")}</TableHead>
                     <TableHead className="text-right">{t("txn.col.balance", "Balance")}</TableHead>
@@ -161,6 +179,13 @@ export default function Transactions() {
                               <Icon className="w-3 h-3 mr-1" />
                               {t(`txn.type.${tx.type}`, tx.type.toUpperCase())}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {tx.source && (
+                              <Badge variant="outline" className={`${SOURCE_BADGE[tx.source] ?? "text-muted-foreground border-border bg-muted/20"} font-mono text-[10px]`}>
+                                {tx.source.toUpperCase()}
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell className={`text-right font-mono font-bold ${tx.amount >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                             {tx.amount >= 0 ? `+${tx.amount}` : tx.amount}

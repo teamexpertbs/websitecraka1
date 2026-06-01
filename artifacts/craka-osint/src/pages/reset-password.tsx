@@ -1,8 +1,17 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Terminal, Lock, Loader2, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react";
+import { Terminal, Lock, Loader2, CheckCircle, XCircle, Eye, EyeOff, AlertTriangle, Clock } from "lucide-react";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+type ErrorType = "expired" | "invalid" | "generic" | null;
+
+function classifyError(msg: string): ErrorType {
+  const m = msg.toLowerCase();
+  if (m.includes("expired")) return "expired";
+  if (m.includes("invalid") || m.includes("already been used")) return "invalid";
+  return "generic";
+}
 
 export default function ResetPassword() {
   const [, setLocation] = useLocation();
@@ -14,13 +23,15 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const [errorType, setErrorType] = useState<ErrorType>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setErrorType(null);
     if (password.length < 6) { setError("Password must be at least 6 characters"); return; }
     if (password !== confirm) { setError("Passwords do not match"); return; }
-    if (!token) { setError("Invalid reset link"); return; }
+    if (!token) { setError("Invalid reset link"); setErrorType("invalid"); return; }
 
     setLoading(true);
     try {
@@ -34,14 +45,19 @@ export default function ResetPassword() {
         setDone(true);
         setTimeout(() => setLocation("/login"), 2500);
       } else {
-        setError(data.error || "Reset failed. Please try again.");
+        const msg = data.error || "Reset failed. Please try again.";
+        setError(msg);
+        setErrorType(classifyError(msg));
       }
     } catch {
       setError("Network error. Please try again.");
+      setErrorType("generic");
     } finally {
       setLoading(false);
     }
   };
+
+  const goForgot = () => setLocation("/forgot-password");
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -63,14 +79,24 @@ export default function ResetPassword() {
           </div>
 
           <div className="px-6 py-6">
+            {/* No token in URL */}
             {!token ? (
-              <div className="text-center space-y-3">
-                <XCircle className="w-8 h-8 text-destructive mx-auto" />
-                <p className="text-sm text-destructive font-mono">Invalid reset link</p>
-                <button onClick={() => setLocation("/forgot-password")} className="text-xs text-primary hover:underline">Request new link →</button>
+              <div className="text-center space-y-4 py-2">
+                <div className="w-12 h-12 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center mx-auto">
+                  <XCircle className="w-6 h-6 text-destructive" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Invalid Reset Link</p>
+                  <p className="text-xs text-muted-foreground mt-1">This link is missing required data. Please request a new one.</p>
+                </div>
+                <button onClick={goForgot} className="w-full py-2 rounded-lg bg-primary/10 border border-primary/30 text-xs font-medium text-primary hover:bg-primary/20 transition-colors">
+                  Request New Reset Link →
+                </button>
               </div>
+
+            /* Success */
             ) : done ? (
-              <div className="flex flex-col items-center gap-4">
+              <div className="flex flex-col items-center gap-4 py-2">
                 <div className="w-12 h-12 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center">
                   <CheckCircle className="w-6 h-6 text-green-400" />
                 </div>
@@ -79,6 +105,38 @@ export default function ResetPassword() {
                   <p className="text-xs text-muted-foreground mt-1">Redirecting to sign in...</p>
                 </div>
               </div>
+
+            /* Token expired */
+            ) : errorType === "expired" ? (
+              <div className="text-center space-y-4 py-2">
+                <div className="w-12 h-12 rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center mx-auto">
+                  <Clock className="w-6 h-6 text-yellow-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Link Expired</p>
+                  <p className="text-xs text-muted-foreground mt-1">This reset link has expired (15-minute limit). Please request a fresh one.</p>
+                </div>
+                <button onClick={goForgot} className="w-full py-2 rounded-lg bg-primary/10 border border-primary/30 text-xs font-medium text-primary hover:bg-primary/20 transition-colors">
+                  Request New Reset Link →
+                </button>
+              </div>
+
+            /* Invalid / already used */
+            ) : errorType === "invalid" ? (
+              <div className="text-center space-y-4 py-2">
+                <div className="w-12 h-12 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center mx-auto">
+                  <AlertTriangle className="w-6 h-6 text-destructive" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Link Already Used</p>
+                  <p className="text-xs text-muted-foreground mt-1">This reset link has already been used or is invalid. Each link works only once.</p>
+                </div>
+                <button onClick={goForgot} className="w-full py-2 rounded-lg bg-primary/10 border border-primary/30 text-xs font-medium text-primary hover:bg-primary/20 transition-colors">
+                  Request New Reset Link →
+                </button>
+              </div>
+
+            /* Password form */
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -111,7 +169,7 @@ export default function ResetPassword() {
                       className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
                     />
                   </div>
-                  {error && <p className="text-xs text-destructive mt-1.5 font-mono">{error}</p>}
+                  {error && !errorType && <p className="text-xs text-destructive mt-1.5 font-mono">{error}</p>}
                 </div>
                 <button
                   type="submit"

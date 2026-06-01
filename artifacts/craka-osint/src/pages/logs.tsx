@@ -1,19 +1,78 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Layout } from "@/components/layout";
 import { useGetHistory, getGetHistoryQueryKey } from "@workspace/api-client-react";
 import { useUserStore } from "@/lib/user-store";
+import { useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { History, Search, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Lock, Download, RotateCcw } from "lucide-react";
+import { History, Search, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Lock, Download, RotateCcw, Trash2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export default function Logs() {
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [clearingAll, setClearingAll] = useState(false);
   const { signedInUser } = useUserStore();
   const sessionId = signedInUser?.sessionId;
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const invalidateHistory = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: getGetHistoryQueryKey({ page, limit: 15, sessionId }) });
+    queryClient.invalidateQueries({ queryKey: ["getHistory"] });
+  }, [queryClient, page, sessionId]);
+
+  const handleDeleteOne = async (id: number) => {
+    if (!sessionId) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`${API_BASE}/api/osint/history/${id}?sessionId=${encodeURIComponent(sessionId)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast({ title: "Log deleted", description: "Entry removed from your logs." });
+      invalidateHistory();
+    } catch (e: any) {
+      toast({ title: "Delete failed", description: e?.message ?? "Unknown error", variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!sessionId) return;
+    setClearingAll(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/osint/history/all?sessionId=${encodeURIComponent(sessionId)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast({ title: "All logs cleared", description: "Your entire log history has been deleted." });
+      setPage(1);
+      invalidateHistory();
+    } catch (e: any) {
+      toast({ title: "Clear failed", description: e?.message ?? "Unknown error", variant: "destructive" });
+    } finally {
+      setClearingAll(false);
+    }
+  };
 
   const { data, isLoading } = useGetHistory(
     { page, limit: 15, sessionId },
@@ -109,6 +168,39 @@ export default function Logs() {
               <Download className="w-3.5 h-3.5" />
               JSON
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
+                  disabled={historyEntries.length === 0 || clearingAll}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Clear All
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-destructive" />
+                    Clear All Logs?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete all your query log entries. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={handleClearAll}
+                  >
+                    Yes, delete all
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </header>
 
@@ -120,7 +212,7 @@ export default function Logs() {
                 <TableHead className="text-xs">API</TableHead>
                 <TableHead className="text-xs">Query</TableHead>
                 <TableHead className="text-right text-xs">Status</TableHead>
-                <TableHead className="text-right text-xs w-20">Action</TableHead>
+                <TableHead className="text-right text-xs w-24">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -164,15 +256,27 @@ export default function Logs() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                        title="Re-run this search"
-                        onClick={() => { window.location.href = `/?slug=${encodeURIComponent(entry.slug)}&q=${encodeURIComponent(entry.queryVal)}`; }}
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                          title="Re-run this search"
+                          onClick={() => { window.location.href = `/?slug=${encodeURIComponent(entry.slug)}&q=${encodeURIComponent(entry.queryVal)}`; }}
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          title="Delete this log"
+                          disabled={deletingId === entry.id}
+                          onClick={() => handleDeleteOne(entry.id)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

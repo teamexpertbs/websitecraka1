@@ -36,6 +36,14 @@ function AdminLayout({ children, minimal }: { children: React.ReactNode; minimal
             <span className="font-mono text-xs text-muted-foreground tracking-widest hidden sm:inline">/ ADMIN</span>
           </div>
           {!minimal && token && (
+            <div className="flex items-center gap-2">
+              <a
+                href="/admin/logs"
+                className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-primary transition-colors border border-border/50 hover:border-primary/50 px-3 py-1.5 rounded-md"
+              >
+                <Activity className="w-3.5 h-3.5" />
+                LIVE LOGS
+              </a>
             <button
               onClick={() => setToken(null)}
               className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-destructive transition-colors border border-border/50 hover:border-destructive/50 px-3 py-1.5 rounded-md"
@@ -43,6 +51,7 @@ function AdminLayout({ children, minimal }: { children: React.ReactNode; minimal
               <Lock className="w-3.5 h-3.5" />
               LOGOUT
             </button>
+            </div>
           )}
         </div>
       </header>

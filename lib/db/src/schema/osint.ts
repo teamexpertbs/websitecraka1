@@ -67,10 +67,14 @@ export const crakaUsers = pgTable("craka_users", {
   passwordHash: text("password_hash"),
   passwordResetToken: text("password_reset_token"),
   passwordResetExpiry: timestamp("password_reset_expiry"),
+  passwordResetRequestCount: integer("password_reset_request_count").notNull().default(0),
+  lastPasswordResetRequest: timestamp("last_password_reset_request"),
   twoFaSecret: text("two_fa_secret"),
   twoFaEnabled: boolean("two_fa_enabled").notNull().default(false),
   isBanned: boolean("is_banned").notNull().default(false),
   banReason: text("ban_reason"),
+  freeCreditsGranted: integer("free_credits_granted").notNull().default(0),
+  premiumCreditsGranted: integer("premium_credits_granted").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -121,6 +125,7 @@ export const osintTokenTransactions = pgTable("osint_token_transactions", {
   type: text("type").notNull(),
   amount: integer("amount").notNull(),
   reason: text("reason").notNull(),
+  source: text("source").notNull().default("earn"),
   balanceAfter: integer("balance_after").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

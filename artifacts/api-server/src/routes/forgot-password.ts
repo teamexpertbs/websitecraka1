@@ -1,27 +1,67 @@
 import { Router } from "express";
 import { db, crakaUsers, loginLogs } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { sendMagicLink, isEmailConfigured } from "../lib/email";
+import { sendPasswordResetEmail, isEmailConfigured } from "../lib/email";
 import { generateUserToken } from "./auth";
 import { logger } from "../lib/logger";
 import crypto from "crypto";
 
 const router = Router();
 
+// ── In-memory rate limit: max 5 requests per 15 min per email ─────────────────
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_MAX = 5;
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+
+function isRateLimited(key: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(key, { count: 1, windowStart: now });
+    return false;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return true;
+  entry.count++;
+  return false;
+}
+
+function getRateLimitInfo(key: string): { count: number; resetInMs: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) return { count: 0, resetInMs: 0 };
+  return { count: entry.count, resetInMs: RATE_LIMIT_WINDOW_MS - (now - entry.windowStart) };
+}
+
+function hashToken(raw: string): string {
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
 /**
  * POST /api/auth/forgot-password
- * - Email/password users: sends password RESET link
- * - Google-only users: sends magic login link
- * - Unknown email: always returns success (anti-enumeration)
+ * Sends a password reset link. Always returns 200 (anti-enumeration).
  */
 router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   const { email } = req.body as { email?: string };
+  const GENERIC_OK = { success: true, message: "If an account exists for this email, a password reset link has been sent." };
+
   if (!email || !email.includes("@")) {
     res.status(400).json({ error: "Valid email is required" });
     return;
   }
 
   const emailLower = email.toLowerCase().trim();
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
+
+  // Rate limit by email
+  if (isRateLimited(emailLower)) {
+    const info = getRateLimitInfo(emailLower);
+    const minutes = Math.ceil(info.resetInMs / 60000);
+    logger.warn({ email: emailLower, ip }, "Password reset rate limit hit");
+    res.status(429).json({
+      error: `Too many reset requests. Please wait ${minutes} minute${minutes !== 1 ? "s" : ""} before trying again.`,
+    });
+    return;
+  }
 
   try {
     const user = await db
@@ -32,42 +72,62 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
       .then((r) => r[0] ?? null);
 
     if (!user) {
-      res.json({ success: true, message: "If that email is registered, a reset link has been sent." });
+      logger.info({ email: emailLower, ip }, "Password reset requested for unknown email");
+      res.json(GENERIC_OK);
       return;
     }
 
-    const token = crypto.randomBytes(32).toString("hex");
-    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+    if (user.isBanned) {
+      logger.warn({ email: emailLower, userId: user.id }, "Password reset attempted for banned account");
+      res.json(GENERIC_OK);
+      return;
+    }
 
-    // Use password_reset_token for all users
+    // Generate new secure token — send raw, store SHA256 hash
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = hashToken(rawToken);
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // Invalidate any existing token and store new hash
     await db.update(crakaUsers)
-      .set({ passwordResetToken: token, passwordResetExpiry: expiry })
+      .set({
+        passwordResetToken: tokenHash,
+        passwordResetExpiry: expiry,
+        passwordResetRequestCount: (user.passwordResetRequestCount ?? 0) + 1,
+        lastPasswordResetRequest: new Date(),
+      })
       .where(eq(crakaUsers.id, user.id));
 
-    const { sendPasswordResetEmail } = await import("../lib/email");
-    let devToken: string | null = null;
+    logger.info({ email: emailLower, userId: user.id, ip }, "Password reset token generated");
 
+    // Dev mode: no email configured
     if (!isEmailConfigured()) {
-      devToken = token;
-      res.json({ success: true, message: "Email service not configured.", dev_token: devToken });
+      logger.warn({ email: emailLower }, "Email not configured — returning dev_token");
+      res.json({ success: true, message: "Email service not configured.", dev_token: rawToken });
       return;
     }
 
-    const emailSent = await sendPasswordResetEmail(emailLower, token, user.displayName ?? undefined);
+    // Send email with the RAW token (not the hash)
+    let emailSent = false;
+    try {
+      emailSent = await sendPasswordResetEmail(emailLower, rawToken, user.displayName ?? undefined);
+    } catch (emailErr) {
+      logger.error({ err: emailErr, email: emailLower }, "Password reset email threw exception");
+    }
 
     if (!emailSent) {
-      logger.error({ email: emailLower }, "Password reset email failed to send on production");
-      res.status(500).json({ error: "Email delivery failed. Please try again later." });
+      logger.error({ email: emailLower }, "Password reset email failed to deliver");
+      // Still return generic success — don't reveal whether email exists
+      // but log for ops team to investigate SMTP issues
+      res.json(GENERIC_OK);
       return;
     }
 
-    res.json({
-      success: true,
-      message: "Password reset link sent! Check your inbox (expires in 15 minutes).",
-    });
+    logger.info({ email: emailLower, userId: user.id }, "Password reset email sent successfully");
+    res.json(GENERIC_OK);
   } catch (err) {
     logger.error({ err }, "Error in /auth/forgot-password");
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Internal server error. Please try again." });
   }
 });
 

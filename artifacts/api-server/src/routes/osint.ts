@@ -198,7 +198,7 @@ router.post("/osint/lookup", async (req, res) => {
   if (cached[0]) {
     let data = JSON.parse(cached[0].result) as Record<string, unknown>;
     data = injectDeveloperCredit(data);
-    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true });
+    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true, sessionId: userSessionId });
     res.json({ data, cached: true, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
     return;
   }
@@ -213,7 +213,7 @@ router.post("/osint/lookup", async (req, res) => {
     const hasErrorKey = rawData && typeof rawData === 'object' && ('error' in rawData || 'status' in rawData && (rawData as any).status === false);
 
     if (statusCode >= 400 || isEmpty || hasErrorKey) {
-      await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
+      await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false, sessionId: userSessionId });
       if (!isUnlimited) {
         // Refund tokens
         await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, userSessionId!));
@@ -225,11 +225,11 @@ router.post("/osint/lookup", async (req, res) => {
     const data = injectDeveloperCredit(rawData);
     
     await db.insert(osintCache).values({ slug, queryVal: query, result: JSON.stringify(data) }).onConflictDoNothing();
-    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true });
+    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: true, sessionId: userSessionId });
     
     res.json({ data, cached: false, apiName: apiRow.name, success: true, developer: DEVELOPER_CREDIT });
   } catch (err) {
-    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false });
+    await db.insert(osintHistory).values({ slug, apiName: apiRow.name, queryVal: query, success: false, sessionId: userSessionId });
     if (!isUnlimited) {
       // Refund tokens on catch error
       await db.update(crakaUsers).set({ creditsEarned: sql`${crakaUsers.creditsEarned} + ${apiRow.credits}` }).where(eq(crakaUsers.sessionId, userSessionId!));
@@ -242,18 +242,59 @@ router.get("/osint/history", async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const page = Math.max(Number(req.query.page) || 1, 1);
   const offset = (page - 1) * limit;
-  
+  const sessionId = String(req.query.sessionId || "").trim();
+
+  const whereClause = sessionId ? eq(osintHistory.sessionId, sessionId) : undefined;
+
   const [entries, totalResult] = await Promise.all([
-    db.select().from(osintHistory).orderBy(desc(osintHistory.createdAt)).limit(limit).offset(offset),
-    db.select({ count: sql`count(*)` }).from(osintHistory),
+    whereClause
+      ? db.select().from(osintHistory).where(whereClause).orderBy(desc(osintHistory.createdAt)).limit(limit).offset(offset)
+      : db.select().from(osintHistory).orderBy(desc(osintHistory.createdAt)).limit(limit).offset(offset),
+    whereClause
+      ? db.select({ count: sql`count(*)` }).from(osintHistory).where(whereClause)
+      : db.select({ count: sql`count(*)` }).from(osintHistory),
   ]);
-  
+
   res.json({
     entries: entries.map(e => ({ ...e, createdAt: e.createdAt.toISOString() })),
     total: Number(totalResult[0]?.count ?? 0),
     page,
     limit,
   });
+});
+
+router.delete("/osint/history/all", async (req, res) => {
+  const sessionId = String(req.query.sessionId || "").trim();
+  if (!sessionId) {
+    res.status(400).json({ error: "sessionId required" });
+    return;
+  }
+  try {
+    const result = await db.delete(osintHistory).where(eq(osintHistory.sessionId, sessionId));
+    res.json({ success: true, message: "All your logs have been deleted." });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete("/osint/history/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const sessionId = String(req.query.sessionId || "").trim();
+  if (!sessionId || !id) {
+    res.status(400).json({ error: "id and sessionId required" });
+    return;
+  }
+  try {
+    const entry = await db.select().from(osintHistory).where(and(eq(osintHistory.id, id), eq(osintHistory.sessionId, sessionId))).limit(1);
+    if (!entry[0]) {
+      res.status(404).json({ error: "Log entry not found or does not belong to you" });
+      return;
+    }
+    await db.delete(osintHistory).where(and(eq(osintHistory.id, id), eq(osintHistory.sessionId, sessionId)));
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 router.get("/osint/stats", async (req, res) => {

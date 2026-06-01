@@ -338,8 +338,8 @@ router.post("/auth/refresh", async (req, res): Promise<void> => {
     const newToken = generateUserToken({
       sessionId: user.sessionId,
       googleId: user.googleId ?? "",
-      email: user.email,
-      name: user.displayName,
+      email: user.email ?? "",
+      name: user.displayName ?? "",
       avatarUrl: user.avatarUrl ?? undefined,
     });
     res.json({ success: true, token: newToken });

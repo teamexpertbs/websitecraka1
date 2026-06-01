@@ -57,9 +57,12 @@ router.post("/user/init", async (req, res): Promise<void> => {
         }
       }
 
+      const initialCredits = referredBy ? 10 : 5;
       const inserted = await db.insert(crakaUsers).values({
         sessionId, referralCode, referredBy,
-        isPremium: false, creditsEarned: referredBy ? 10 : 5, totalReferrals: 0,
+        isPremium: false, creditsEarned: initialCredits, totalReferrals: 0,
+        freeCreditsGranted: initialCredits,
+        premiumCreditsGranted: 0,
       }).returning();
       user = inserted[0];
     }
@@ -144,6 +147,23 @@ router.delete("/user/bookmarks/:id", async (req, res): Promise<void> => {
     if (!sessionId) { res.status(400).json({ error: "sessionId is required" }); return; }
     await db.delete(bookmarks).where(and(eq(bookmarks.id, id), eq(bookmarks.sessionId, sessionId)));
     res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// GET credit transaction history for a session
+router.get("/user/transactions", async (req, res): Promise<void> => {
+  try {
+    const sessionId = String(req.query.sessionId || "").trim();
+    if (!sessionId) { res.status(400).json({ error: "sessionId is required" }); return; }
+    const limit = Math.min(Number(req.query.limit) || 200, 500);
+    const entries = await db.select().from(osintTokenTransactions)
+      .where(eq(osintTokenTransactions.sessionId, sessionId))
+      .orderBy(desc(osintTokenTransactions.createdAt))
+      .limit(limit);
+    res.json({
+      entries: entries.map(e => ({ ...e, createdAt: e.createdAt.toISOString() })),
+      total: entries.length,
+    });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

@@ -1,0 +1,1 @@
+- [DB Migration Approach](db-migration-approach.md) — drizzle-kit push fails on this host; use raw SQL via Node.js with pg loaded from pnpm store path.

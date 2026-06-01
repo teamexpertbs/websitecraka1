@@ -25,6 +25,10 @@ import Profile from "@/pages/profile";
 import Notifications from "@/pages/notifications";
 import Bookmarks from "@/pages/bookmarks";
 import Bulk from "@/pages/bulk";
+import AdminLogs from "@/pages/admin-logs";
+import { installErrorReporter } from "@/lib/errorReporter";
+
+installErrorReporter();
 
 const queryClient = new QueryClient();
 
@@ -101,6 +105,7 @@ function Router() {
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/admin" component={Admin} />
+      <Route path="/admin/logs" component={AdminLogs} />
       <Route>
         <AuthGuard>
           <Switch>

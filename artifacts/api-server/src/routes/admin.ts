@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, osintApis, osintHistory, osintCache, crakaUsers, broadcasts, loginLogs, coupons, couponUses, scheduledBroadcasts } from "@workspace/db";
+import { db, osintApis, osintHistory, osintCache, crakaUsers, broadcasts, loginLogs, coupons, couponUses, scheduledBroadcasts, osintTokenTransactions } from "@workspace/db";
 import { eq, sql, desc, and, lte } from "drizzle-orm";
 import { generateToken, adminAuthMiddleware, refreshTokenHandler } from "../lib/jwt";
 import { AdminLoginSchema, AdminCreateApiSchema, AdminGrantPremiumSchema, formatValidationError } from "../lib/validation";
@@ -305,8 +305,17 @@ router.post("/admin/grant-premium", adminAuthMiddleware, async (req, res) => {
     expiresAt.setDate(expiresAt.getDate() + 30);
     await db.update(crakaUsers).set({
       isPremium: true, premiumPlan: plan, premiumExpiresAt: expiresAt,
-      creditsEarned: sql`${crakaUsers.creditsEarned} + ${tokensToAdd}`
+      creditsEarned: sql`${crakaUsers.creditsEarned} + ${tokensToAdd}`,
+      premiumCreditsGranted: sql`${crakaUsers.premiumCreditsGranted} + ${tokensToAdd}`,
     }).where(eq(crakaUsers.referralCode, code));
+    await db.insert(osintTokenTransactions).values({
+      sessionId: user.sessionId,
+      type: "grant",
+      amount: tokensToAdd,
+      reason: `Premium plan granted: ${plan}`,
+      source: "premium",
+      balanceAfter: user.creditsEarned + tokensToAdd,
+    }).catch(() => {});
     res.json({ success: true, message: `Premium (${plan}) granted to user ${code}. Added ${tokensToAdd} tokens.` });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -314,22 +323,147 @@ router.post("/admin/grant-premium", adminAuthMiddleware, async (req, res) => {
 router.post("/admin/revoke-premium", adminAuthMiddleware, async (req, res) => {
   try {
     const code = String(req.body?.referralCode || req.body?.code || "").trim().toUpperCase();
-    const keepCredits = req.body?.keepCredits === true;
     if (!code) { res.status(400).json({ error: "referralCode is required" }); return; }
     const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
     if (!user) { res.status(404).json({ error: "User not found with that ID" }); return; }
-    const updateData: Record<string, unknown> = {
+    // Only remove premium credits — preserve free credits the user legitimately earned
+    const premiumToRemove = user.premiumCreditsGranted ?? 0;
+    const newBalance = Math.max(0, user.creditsEarned - premiumToRemove);
+    await db.update(crakaUsers).set({
       isPremium: false,
       premiumPlan: null,
       premiumExpiresAt: null,
-    };
-    if (!keepCredits) {
-      // Reset credits to free-tier base (5) on revoke
-      updateData.creditsEarned = 5;
-    }
-    await db.update(crakaUsers).set(updateData).where(eq(crakaUsers.referralCode, code));
-    const creditMsg = keepCredits ? "" : " Credits reset to 5.";
-    res.json({ success: true, message: `Premium revoked for user ${code}.${creditMsg}` });
+      creditsEarned: newBalance,
+      premiumCreditsGranted: 0,
+    }).where(eq(crakaUsers.referralCode, code));
+    await db.insert(osintTokenTransactions).values({
+      sessionId: user.sessionId,
+      type: "revoke",
+      amount: -premiumToRemove,
+      reason: `Premium revoked — ${premiumToRemove} premium credits removed`,
+      source: "premium",
+      balanceAfter: newBalance,
+    }).catch(() => {});
+    res.json({
+      success: true,
+      message: `Premium revoked for user ${code}. Removed ${premiumToRemove} premium credits. New balance: ${newBalance} (free credits preserved).`,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: add credits to a user with source tracking
+router.post("/admin/users/:code/credits/add", adminAuthMiddleware, async (req, res) => {
+  try {
+    const code = String(req.params.code).trim().toUpperCase();
+    const amount = Number(req.body?.amount);
+    const source = String(req.body?.source || "admin").trim();
+    const reason = String(req.body?.reason || "Admin credit addition");
+    if (!code || isNaN(amount) || amount <= 0) { res.status(400).json({ error: "code and positive amount are required" }); return; }
+    const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    const newBalance = user.creditsEarned + amount;
+    const freeIncrease = source === "free" || source === "admin" ? amount : 0;
+    await db.update(crakaUsers).set({
+      creditsEarned: newBalance,
+      freeCreditsGranted: sql`${crakaUsers.freeCreditsGranted} + ${freeIncrease}`,
+    }).where(eq(crakaUsers.referralCode, code));
+    await db.insert(osintTokenTransactions).values({
+      sessionId: user.sessionId,
+      type: "grant",
+      amount,
+      reason,
+      source,
+      balanceAfter: newBalance,
+    }).catch(() => {});
+    res.json({ success: true, message: `Added ${amount} credits to ${code}. New balance: ${newBalance}.` });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: remove credits from a user
+router.post("/admin/users/:code/credits/remove", adminAuthMiddleware, async (req, res) => {
+  try {
+    const code = String(req.params.code).trim().toUpperCase();
+    const amount = Number(req.body?.amount);
+    const reason = String(req.body?.reason || "Admin credit removal");
+    if (!code || isNaN(amount) || amount <= 0) { res.status(400).json({ error: "code and positive amount are required" }); return; }
+    const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    const newBalance = Math.max(0, user.creditsEarned - amount);
+    await db.update(crakaUsers).set({ creditsEarned: newBalance }).where(eq(crakaUsers.referralCode, code));
+    await db.insert(osintTokenTransactions).values({
+      sessionId: user.sessionId,
+      type: "adjust",
+      amount: -amount,
+      reason,
+      source: "admin",
+      balanceAfter: newBalance,
+    }).catch(() => {});
+    res.json({ success: true, message: `Removed ${amount} credits from ${code}. New balance: ${newBalance}.` });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: get credit transaction history for a specific user
+router.get("/admin/users/:code/transactions", adminAuthMiddleware, async (req, res) => {
+  try {
+    const code = String(req.params.code).trim().toUpperCase();
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    const entries = await db.select().from(osintTokenTransactions)
+      .where(eq(osintTokenTransactions.sessionId, user.sessionId))
+      .orderBy(desc(osintTokenTransactions.createdAt))
+      .limit(limit);
+    res.json({
+      user: {
+        referralCode: user.referralCode,
+        email: user.email,
+        displayName: user.displayName,
+        creditsEarned: user.creditsEarned,
+        freeCreditsGranted: user.freeCreditsGranted,
+        premiumCreditsGranted: user.premiumCreditsGranted,
+        isPremium: user.isPremium,
+        premiumPlan: user.premiumPlan,
+      },
+      entries: entries.map(e => ({ ...e, createdAt: e.createdAt.toISOString() })),
+      total: entries.length,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: get query logs for a specific user
+router.get("/admin/users/:code/logs", adminAuthMiddleware, async (req, res) => {
+  try {
+    const code = String(req.params.code).trim().toUpperCase();
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const offset = (page - 1) * limit;
+    const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    const [entries, totalResult] = await Promise.all([
+      db.select().from(osintHistory)
+        .where(eq(osintHistory.sessionId, user.sessionId))
+        .orderBy(desc(osintHistory.createdAt))
+        .limit(limit).offset(offset),
+      db.select({ count: sql`count(*)` }).from(osintHistory)
+        .where(eq(osintHistory.sessionId, user.sessionId)),
+    ]);
+    res.json({
+      user: { referralCode: user.referralCode, email: user.email, displayName: user.displayName },
+      entries: entries.map(e => ({ ...e, createdAt: e.createdAt.toISOString() })),
+      total: Number(totalResult[0]?.count ?? 0),
+      page, limit,
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: delete all logs for a specific user
+router.delete("/admin/users/:code/logs", adminAuthMiddleware, async (req, res) => {
+  try {
+    const code = String(req.params.code).trim().toUpperCase();
+    const user = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, code)).then(r => r[0]);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    await db.delete(osintHistory).where(eq(osintHistory.sessionId, user.sessionId));
+    res.json({ success: true, message: `All logs deleted for user ${code}.` });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

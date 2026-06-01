@@ -6,6 +6,7 @@ import usersRouter from "./users";
 import authRouter from "./auth";
 import forgotPasswordRouter from "./forgot-password";
 import emailAuthRouter from "./email-auth";
+import logsRouter from "./logs";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(forgotPasswordRouter);
 router.use(osintRouter);
 router.use(adminRouter);
 router.use(usersRouter);
+router.use(logsRouter);
 
 export default router;
