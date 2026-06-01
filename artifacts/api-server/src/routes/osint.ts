@@ -153,34 +153,17 @@ router.post("/osint/lookup", async (req, res) => {
     }
   }
 
-  // Token Validation - find the right user
+  // Token Validation - find the user by their own session only
   let user: any = null;
-  let userSessionId: string | null = null;
-  
+  const userSessionId: string | null = sessionId ?? null;
+
   if (sessionId) {
     const found = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).limit(1);
     user = found[0] || null;
-    userSessionId = sessionId;
   }
-  
-  // If no user found by sessionId, or user has 0 credits and no premium,
-  // check if there's a premium user or user with credits (handles ghost session issue)
-  if (!user || (!user.isPremium && user.creditsEarned < apiRow.credits)) {
-    const allUsers = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.creditsEarned)).limit(10);
-    const premiumUser = allUsers.find((u: any) => u.isPremium && u.premiumPlan);
-    const creditUser = allUsers.find((u: any) => u.creditsEarned >= apiRow.credits);
-    
-    if (premiumUser) {
-      user = premiumUser;
-      userSessionId = premiumUser.sessionId;
-    } else if (creditUser && !user) {
-      user = creditUser;
-      userSessionId = creditUser.sessionId;
-    }
-  }
-  
+
   if (!user) {
-    res.status(401).json({ error: "No user session found. Please visit the site and try again." });
+    res.status(401).json({ error: "Session not found. Please refresh and try again." });
     return;
   }
   

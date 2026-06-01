@@ -1,0 +1,98 @@
+Implement a complete user-level credit and log management system with the following requirements:
+
+### User Logs System
+
+* Maintain logs separately for every user.
+* Each user must be able to view only their own logs.
+* Admins must be able to view logs of any user.
+* Provide a dedicated "My Logs" section for users.
+* Include timestamps, action type, status, and relevant details for each log entry.
+* Allow users to delete their own logs individually or clear all logs.
+* Log deletion must affect only the requesting user's logs and never impact other users.
+* Ensure proper database indexing and optimized queries for large-scale usage.
+
+### Credit System
+
+Create a robust and accurate credit management system that tracks all credit operations at the user level.
+
+#### Free Credits on Signup
+
+* Every newly registered user receives exactly 5 free credits.
+* These credits must be marked as "Free Credits" in the database.
+* Free credits should be stored separately from premium credits.
+
+#### Premium Credits
+
+* When a user purchases a premium plan, add the corresponding premium credits to their account.
+* Premium credits must be tracked separately from free credits.
+* Store complete purchase information, including:
+
+  * Purchase date
+  * Credits added
+  * Plan name
+  * Expiry date (if applicable)
+  * Transaction reference
+
+#### Credit Usage Logic
+
+* When a user consumes credits, deduct them in a predictable and consistent manner.
+* Maintain a complete credit transaction history.
+* Record:
+
+  * Credits added
+  * Credits used
+  * Source of credits (Free or Premium)
+  * Remaining balance after each transaction
+
+#### Premium Revocation Logic
+
+If a premium subscription is revoked, expired, cancelled, refunded, or removed:
+
+1. Remove only the credits granted by that premium subscription.
+2. Do not reset the user's account.
+3. Do not modify the original signup credits.
+4. Restore the user's balance to the correct state based on remaining free credits.
+
+Example:
+
+* User signs up and receives 5 free credits.
+* User uses 2 free credits.
+* Remaining free credits = 3.
+* User purchases Premium and receives 100 premium credits.
+* Total balance becomes 103 credits.
+* Later Premium is revoked.
+* Remove only the 100 premium credits.
+* User must retain the remaining 3 free credits.
+* Final balance = 3 credits.
+
+#### Additional Requirements
+
+* Prevent negative credit balances.
+* Prevent duplicate credit additions.
+* Prevent duplicate premium rewards.
+* Ensure all credit calculations are atomic and transaction-safe.
+* Handle concurrent requests correctly.
+* Maintain a complete audit trail of all credit changes.
+* Include admin tools to:
+
+  * View user balances
+  * View credit history
+  * Add credits
+  * Remove credits
+  * Recalculate balances
+  * Revoke premium benefits safely
+* Implement proper validation and security checks to prevent abuse or manipulation.
+
+### Database Requirements
+
+Design the database so that:
+
+* Free credits and premium credits are stored separately.
+* Every credit transaction is recorded.
+* Every log action is recorded.
+* Historical records remain available for auditing.
+* Credit balances can always be recalculated from transaction history if needed.
+
+### Expected Result
+
+The final system must provide accurate user-specific logs, secure log deletion, separate free and premium credit tracking, correct premium revocation handling, complete transaction history, and consistent balance calculations under all scenarios without data loss or incorrect credit deductions.

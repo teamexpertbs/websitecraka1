@@ -30,49 +30,38 @@ router.post("/user/init", async (req, res): Promise<void> => {
     let user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
 
     if (!user) {
-      const existingUser = await db.select().from(crakaUsers)
-        .orderBy(sql`"is_premium" DESC, "credits_earned" DESC`)
-        .limit(1)
-        .then(r => r[0]);
-
-      if (existingUser) {
-        await db.update(crakaUsers).set({ sessionId }).where(eq(crakaUsers.id, existingUser.id));
-        user = { ...existingUser, sessionId };
-        logger.info({ referralCode: existingUser.referralCode }, "Re-linked session to existing user");
-      } else {
-        let referralCode = generateReferralCode();
-        let attempts = 0;
-        while (attempts < 5) {
-          const existing = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, referralCode)).then(r => r[0]);
-          if (!existing) break;
-          referralCode = generateReferralCode();
-          attempts++;
-        }
-
-        let referredBy: string | undefined;
-        if (usedReferralCode) {
-          const referrer = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, usedReferralCode)).then(r => r[0]);
-          if (referrer && referrer.sessionId !== sessionId) {
-            referredBy = usedReferralCode;
-            const newTotal = referrer.totalReferrals + 1;
-            await db.insert(crakaReferrals).values({ referrerCode: usedReferralCode, referredSessionId: sessionId, creditsAwarded: 2 });
-            let updateData: any = {
-              totalReferrals: sql`${crakaUsers.totalReferrals} + 1`,
-              creditsEarned: sql`${crakaUsers.creditsEarned} + 2`,
-            };
-            if (newTotal === 20) { const e = new Date(); e.setDate(e.getDate() + 30); updateData.isPremium = true; updateData.premiumPlan = "Basic"; updateData.premiumExpiresAt = e; }
-            else if (newTotal === 50) { const e = new Date(); e.setDate(e.getDate() + 30); updateData.isPremium = true; updateData.premiumPlan = "Pro"; updateData.premiumExpiresAt = e; }
-            else if (newTotal === 100) { const e = new Date(); e.setDate(e.getDate() + 30); updateData.isPremium = true; updateData.premiumPlan = "Elite"; updateData.premiumExpiresAt = e; }
-            await db.update(crakaUsers).set(updateData).where(eq(crakaUsers.referralCode, usedReferralCode));
-          }
-        }
-
-        const inserted = await db.insert(crakaUsers).values({
-          sessionId, referralCode, referredBy,
-          isPremium: false, creditsEarned: referredBy ? 10 : 5, totalReferrals: 0,
-        }).returning();
-        user = inserted[0];
+      let referralCode = generateReferralCode();
+      let attempts = 0;
+      while (attempts < 5) {
+        const existing = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, referralCode)).then(r => r[0]);
+        if (!existing) break;
+        referralCode = generateReferralCode();
+        attempts++;
       }
+
+      let referredBy: string | undefined;
+      if (usedReferralCode) {
+        const referrer = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, usedReferralCode)).then(r => r[0]);
+        if (referrer && referrer.sessionId !== sessionId) {
+          referredBy = usedReferralCode;
+          const newTotal = referrer.totalReferrals + 1;
+          await db.insert(crakaReferrals).values({ referrerCode: usedReferralCode, referredSessionId: sessionId, creditsAwarded: 2 });
+          let updateData: any = {
+            totalReferrals: sql`${crakaUsers.totalReferrals} + 1`,
+            creditsEarned: sql`${crakaUsers.creditsEarned} + 2`,
+          };
+          if (newTotal === 20) { const e = new Date(); e.setDate(e.getDate() + 30); updateData.isPremium = true; updateData.premiumPlan = "Basic"; updateData.premiumExpiresAt = e; }
+          else if (newTotal === 50) { const e = new Date(); e.setDate(e.getDate() + 30); updateData.isPremium = true; updateData.premiumPlan = "Pro"; updateData.premiumExpiresAt = e; }
+          else if (newTotal === 100) { const e = new Date(); e.setDate(e.getDate() + 30); updateData.isPremium = true; updateData.premiumPlan = "Elite"; updateData.premiumExpiresAt = e; }
+          await db.update(crakaUsers).set(updateData).where(eq(crakaUsers.referralCode, usedReferralCode));
+        }
+      }
+
+      const inserted = await db.insert(crakaUsers).values({
+        sessionId, referralCode, referredBy,
+        isPremium: false, creditsEarned: referredBy ? 10 : 5, totalReferrals: 0,
+      }).returning();
+      user = inserted[0];
     }
 
     if (!user) { res.status(500).json({ error: "Failed to initialize user" }); return; }
