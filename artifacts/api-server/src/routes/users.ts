@@ -5,8 +5,48 @@ import { eq, sql, and, desc } from "drizzle-orm";
 import { UserInitSchema, UserMeSchema, formatValidationError } from "../lib/validation";
 import { logger } from "../lib/logger";
 import { verifyUserToken } from "./auth";
+import { createRateLimiter } from "../lib/rateLimit";
 
 const router = Router();
+
+// ── Bot/crawler detection ───────────────────────────────────────────────────
+const BOT_UA_PATTERNS = [
+  /googlebot/i, /bingbot/i, /slurp/i, /duckduckbot/i,
+  /baiduspider/i, /yandexbot/i, /sogou/i, /exabot/i, /facebot/i,
+  /ia_archiver/i, /mj12bot/i, /ahrefsbot/i, /semrushbot/i,
+  /dotbot/i, /rogerbot/i, /linkdexbot/i, /proximic/i,
+  /crawler/i, /spider/i, /scraper/i,
+  /python-requests/i, /python\//i, /curl\//i, /wget\//i, /libwww/i,
+  /java\//i, /go-http-client/i, /ruby/i, /perl/i, /php\//i,
+  /axios\/0\./i, /node-fetch/i, /got\//i, /superagent/i,
+  /nmap/i, /sqlmap/i, /nikto/i, /masscan/i, /zgrab/i,
+  /scan/i, /probe/i, /health-?check/i,
+];
+
+function isBot(userAgent: string | undefined): boolean {
+  if (!userAgent || userAgent.trim() === "") return true;
+  return BOT_UA_PATTERNS.some((p) => p.test(userAgent));
+}
+
+// sessionId must be at least 20 chars, alphanumeric + dash/underscore
+const SESSION_ID_RE = /^[a-zA-Z0-9_-]{20,128}$/;
+
+// Rate limit: max 8 init requests per IP per 10 minutes
+const initRateLimiter = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 8,
+  keyFn: (req) => req.ip ?? req.socket.remoteAddress ?? null,
+  message: "Too many session init requests. Please try again later.",
+});
+
+function getClientIp(req: any): string {
+  return (
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+    req.ip ||
+    req.socket?.remoteAddress ||
+    "unknown"
+  );
+}
 
 function generateReferralCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -17,8 +57,17 @@ function generateReferralCode(): string {
   return code;
 }
 
-router.post("/user/init", async (req, res): Promise<void> => {
+router.post("/user/init", initRateLimiter, async (req, res): Promise<void> => {
   try {
+    const ua = req.headers["user-agent"] || "";
+
+    // Block bots and crawlers
+    if (isBot(ua)) {
+      logger.warn({ ip: getClientIp(req), ua }, "Bot/crawler blocked from /user/init");
+      res.status(403).json({ error: "Automated requests are not allowed" });
+      return;
+    }
+
     const validation = UserInitSchema.safeParse(req.body);
     if (!validation.success) {
       res.status(400).json(formatValidationError(validation.error));
@@ -26,6 +75,15 @@ router.post("/user/init", async (req, res): Promise<void> => {
     }
 
     const { sessionId, referralCode: usedReferralCode } = validation.data;
+
+    // Validate sessionId format — must look like a real browser-generated ID
+    if (!SESSION_ID_RE.test(sessionId)) {
+      logger.warn({ ip: getClientIp(req), sessionId: sessionId.slice(0, 20) }, "Invalid sessionId format in /user/init");
+      res.status(400).json({ error: "Invalid session identifier" });
+      return;
+    }
+
+    const ip = getClientIp(req);
 
     let user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, sessionId)).then(r => r[0]);
 
@@ -63,8 +121,12 @@ router.post("/user/init", async (req, res): Promise<void> => {
         isPremium: false, creditsEarned: initialCredits, totalReferrals: 0,
         freeCreditsGranted: initialCredits,
         premiumCreditsGranted: 0,
+        createdByIp: ip,
+        createdByUserAgent: ua.slice(0, 500),
       }).returning();
       user = inserted[0];
+
+      logger.info({ sessionId: sessionId.slice(0, 8) + "...", ip, ua: ua.slice(0, 120), referredBy }, "New user created via /user/init");
     }
 
     if (!user) { res.status(500).json({ error: "Failed to initialize user" }); return; }
@@ -183,13 +245,11 @@ router.post("/user/apply-referral", async (req, res): Promise<void> => {
     const referrer = await db.select().from(crakaUsers).where(eq(crakaUsers.referralCode, referralCode)).then(r => r[0]);
     if (!referrer) { res.status(404).json({ error: "Referral code nahi mila. Check karein aur dobara try karein." }); return; }
 
-    // Give +5 tokens to the user who applied
     await db.update(crakaUsers).set({
       referredBy: referralCode,
       creditsEarned: sql`${crakaUsers.creditsEarned} + 5`,
     }).where(eq(crakaUsers.sessionId, sessionId));
 
-    // Give +2 tokens to the referrer and increment their count
     const newTotal = referrer.totalReferrals + 1;
     let updateData: any = {
       totalReferrals: sql`${crakaUsers.totalReferrals} + 1`,
@@ -221,13 +281,11 @@ router.post("/user/redeem-coupon", async (req, res): Promise<void> => {
     if (coupon.expiresAt && coupon.expiresAt < new Date()) { res.status(400).json({ error: "Yeh coupon expire ho gaya hai" }); return; }
     if (coupon.usedCount >= coupon.maxUses) { res.status(400).json({ error: "Yeh coupon ki limit khatam ho gayi hai" }); return; }
 
-    // Check if this user already redeemed this coupon
     const alreadyUsed = await db.select().from(couponUses)
       .where(and(eq(couponUses.couponCode, code), eq(couponUses.sessionId, sessionId)))
       .then(r => r[0]);
     if (alreadyUsed) { res.status(400).json({ error: "Aap yeh coupon pehle hi use kar chuke hain" }); return; }
 
-    // Apply coupon
     await db.update(crakaUsers).set({
       creditsEarned: sql`${crakaUsers.creditsEarned} + ${coupon.credits}`,
     }).where(eq(crakaUsers.sessionId, sessionId));
@@ -288,7 +346,6 @@ router.delete("/user/account", async (req, res): Promise<void> => {
     const user = await db.select().from(crakaUsers).where(eq(crakaUsers.sessionId, payload.sessionId)).then(r => r[0]);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-    // Log the deletion
     if (user.email || user.googleId) {
       await db.insert(deletedAccounts).values({
         email: user.email || null,
@@ -296,7 +353,6 @@ router.delete("/user/account", async (req, res): Promise<void> => {
       });
     }
 
-    // Delete all user data
     await db.delete(bookmarks).where(eq(bookmarks.sessionId, user.sessionId));
     await db.delete(couponUses).where(eq(couponUses.sessionId, user.sessionId));
     await db.delete(osintTokenTransactions).where(eq(osintTokenTransactions.sessionId, user.sessionId));

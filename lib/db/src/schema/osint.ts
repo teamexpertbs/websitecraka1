@@ -75,6 +75,8 @@ export const crakaUsers = pgTable("craka_users", {
   banReason: text("ban_reason"),
   freeCreditsGranted: integer("free_credits_granted").notNull().default(0),
   premiumCreditsGranted: integer("premium_credits_granted").notNull().default(0),
+  createdByIp: text("created_by_ip"),
+  createdByUserAgent: text("created_by_user_agent"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

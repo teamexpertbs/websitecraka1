@@ -84,6 +84,8 @@ const COLUMNS: [string, string, string][] = [
   ["craka_users", "ban_reason",                    "text"],
   ["craka_users", "free_credits_granted",          "integer NOT NULL DEFAULT 0"],
   ["craka_users", "premium_credits_granted",       "integer NOT NULL DEFAULT 0"],
+  ["craka_users", "created_by_ip",                 "text"],
+  ["craka_users", "created_by_user_agent",         "text"],
   ["craka_users", "created_at",                    "timestamp NOT NULL DEFAULT now()"],
   // bookmarks
   ["bookmarks", "label",                  "text"],

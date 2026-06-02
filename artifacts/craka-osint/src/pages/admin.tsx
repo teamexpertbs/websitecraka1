@@ -316,6 +316,40 @@ function AdminDashboard() {
   const [sbAt, setSbAt] = useState("");
   const [sbCreating, setSbCreating] = useState(false);
 
+  // Ghost users state
+  const [ghostUsers, setGhostUsers] = useState<any[]>([]);
+  const [ghostLoading, setGhostLoading] = useState(false);
+  const [ghostCleaning, setGhostCleaning] = useState(false);
+
+  const fetchGhostUsers = async () => {
+    setGhostLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/ghost-users`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setGhostUsers(Array.isArray(data) ? data : []);
+    } catch { /* silent */ } finally { setGhostLoading(false); }
+  };
+
+  const handleCleanupGhosts = async () => {
+    if (!confirm(`Delete ALL ghost users (no email/Google/password, not premium, 0 referrals)? This cannot be undone.`)) return;
+    setGhostCleaning(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/cleanup-ghosts`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Ghost Cleanup Done", description: data.message });
+        fetchGhostUsers();
+        fetchUsers();
+      } else {
+        toast({ title: "Cleanup Failed", description: data.error, variant: "destructive" });
+      }
+    } catch { toast({ title: "Error", description: "Network error", variant: "destructive" }); }
+    finally { setGhostCleaning(false); }
+  };
+
   const fetchApiHealth = async () => {
     setHealthLoading(true);
     setHealthError(null);
@@ -452,6 +486,7 @@ function AdminDashboard() {
       fetchCoupons();
       fetchApiUsage();
       fetchScheduledBcasts();
+      fetchGhostUsers();
     }
   }, [token]);
 
@@ -995,6 +1030,82 @@ function AdminDashboard() {
             </div>
           </CardContent>
           )}
+        </Card>
+
+        {/* Ghost Users Panel */}
+        <Card className="bg-card border-border overflow-hidden">
+          <CardHeader className="bg-muted/40 border-b border-border">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-yellow-400" />
+                  Ghost Users
+                  <span className="text-xs font-normal text-yellow-400 bg-yellow-400/10 border border-yellow-400/30 px-2 py-0.5 rounded-full">{ghostUsers.length} detected</span>
+                </CardTitle>
+                <CardDescription className="text-muted-foreground text-sm mt-1">
+                  Session-only users with no email, Google, or password auth. Likely bots or abandoned sessions.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button variant="ghost" size="sm" onClick={fetchGhostUsers} disabled={ghostLoading} className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" title="Refresh">
+                  <RefreshCw className={`w-4 h-4 ${ghostLoading ? "animate-spin" : ""}`} />
+                </Button>
+                <Button variant="destructive" size="sm" onClick={handleCleanupGhosts} disabled={ghostCleaning || ghostUsers.length === 0} className="h-8 px-3 font-mono text-xs gap-1.5">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {ghostCleaning ? "Cleaning..." : `Clean All (${ghostUsers.filter(g => !g.isPremium && g.totalReferrals === 0).length})`}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {ghostLoading ? (
+              <div className="py-8 text-center text-muted-foreground text-sm">Loading...</div>
+            ) : ghostUsers.length === 0 ? (
+              <div className="py-8 text-center text-sm">
+                <p className="text-emerald-400 font-mono">✓ No ghost users detected</p>
+                <p className="text-muted-foreground text-xs mt-1">All users have valid authentication</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs font-mono">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/20">
+                      <th className="text-left px-4 py-2 text-muted-foreground font-medium">Code</th>
+                      <th className="text-left px-4 py-2 text-muted-foreground font-medium">Session</th>
+                      <th className="text-right px-4 py-2 text-muted-foreground font-medium">Credits</th>
+                      <th className="text-right px-4 py-2 text-muted-foreground font-medium">Refs</th>
+                      <th className="text-left px-4 py-2 text-muted-foreground font-medium">IP</th>
+                      <th className="text-left px-4 py-2 text-muted-foreground font-medium hidden lg:table-cell">User-Agent</th>
+                      <th className="text-left px-4 py-2 text-muted-foreground font-medium">Created</th>
+                      <th className="text-left px-4 py-2 text-muted-foreground font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {ghostUsers.map(g => (
+                      <tr key={g.id} className="hover:bg-muted/10 transition-colors">
+                        <td className="px-4 py-2 text-primary">{g.referralCode}</td>
+                        <td className="px-4 py-2 text-muted-foreground">{g.sessionId}</td>
+                        <td className="px-4 py-2 text-right">{g.creditsEarned}</td>
+                        <td className="px-4 py-2 text-right">{g.totalReferrals}</td>
+                        <td className="px-4 py-2 text-muted-foreground">{g.createdByIp || "—"}</td>
+                        <td className="px-4 py-2 text-muted-foreground/70 truncate max-w-[200px] hidden lg:table-cell" title={g.createdByUserAgent || ""}>{g.createdByUserAgent || "—"}</td>
+                        <td className="px-4 py-2 text-muted-foreground">{new Date(g.createdAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-2">
+                          {g.isPremium ? (
+                            <span className="text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded">PREMIUM</span>
+                          ) : g.totalReferrals > 0 ? (
+                            <span className="text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded">HAS REFS</span>
+                          ) : (
+                            <span className="text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded">SAFE TO DELETE</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
         </Card>
 
         {/* API Usage Chart */}

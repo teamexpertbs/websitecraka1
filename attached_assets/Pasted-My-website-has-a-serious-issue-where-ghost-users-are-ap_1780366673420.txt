@@ -1,0 +1,61 @@
+My website has a serious issue where "ghost users" are appearing in the admin panel even though no real person has signed up or logged in. Currently I am the only actual user of the platform, but multiple fake/phantom user records are being created automatically.
+
+Analyze the entire authentication, registration, session management, database, API routes, OAuth integrations, bot traffic handling, and background jobs to identify the root cause.
+
+Implement the following requirements:
+
+Only create a user record when a real registration or successful authentication is completed.
+Never create a user entry from:
+Page visits
+Guest sessions
+Crawlers
+Search engine bots
+Health checks
+API probes
+Failed login attempts
+Invalid OAuth callbacks
+Automated requests
+Add strict validation before user creation:
+Valid email required
+Unique email required
+Authentication must be verified
+Required user fields must exist
+Prevent duplicate users from being created due to:
+Page refreshes
+Multiple API requests
+Race conditions
+Double form submissions
+Add database constraints:
+Unique email index
+Unique provider ID index
+Proper primary keys
+Add server-side logging showing:
+Who created the account
+Creation timestamp
+Source IP
+Authentication method
+Request origin
+Create an admin audit panel displaying:
+Total registered users
+Last registration time
+Registration source
+User creation logs
+Automatically detect and flag suspicious user records:
+Missing email
+Missing authentication provider
+Empty usernames
+Invalid timestamps
+Add a cleanup utility that can identify and remove ghost users safely without affecting real users.
+Ensure all authentication endpoints are protected against automated account creation.
+Add rate limiting and anti-spam protection.
+Verify that background tasks, cron jobs, webhooks, and third-party integrations cannot create users accidentally.
+Add detailed debug logs around every database INSERT into the users table so the exact source of user creation can be traced.
+Review the entire codebase and ensure there is only one authorized user creation flow.
+
+Expected Result:
+
+No ghost users should ever appear.
+User records should only exist for real authenticated users.
+Admin panel should display accurate user counts.
+Every user creation event must be traceable through logs.
+Existing ghost users should be identified and removable safely.

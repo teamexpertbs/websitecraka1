@@ -467,15 +467,42 @@ router.delete("/admin/users/:code/logs", adminAuthMiddleware, async (req, res) =
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// List ghost/suspicious users — no email, no googleId, no passwordHash (pure session ghosts)
+router.get("/admin/ghost-users", adminAuthMiddleware, async (req, res) => {
+  try {
+    const all = await db.select().from(crakaUsers).orderBy(desc(crakaUsers.createdAt));
+    const ghosts = all.filter(u =>
+      !u.email && !u.googleId && !u.passwordHash
+    );
+    res.json(ghosts.map(u => ({
+      id: u.id,
+      referralCode: u.referralCode,
+      sessionId: u.sessionId.slice(0, 8) + "...",
+      creditsEarned: u.creditsEarned,
+      totalReferrals: u.totalReferrals,
+      isPremium: u.isPremium,
+      isBanned: u.isBanned,
+      createdByIp: u.createdByIp ?? null,
+      createdByUserAgent: u.createdByUserAgent ? u.createdByUserAgent.slice(0, 80) : null,
+      createdAt: u.createdAt.toISOString(),
+    })));
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 router.post("/admin/cleanup-ghosts", adminAuthMiddleware, async (req, res) => {
   try {
-    const ghosts = await db.select().from(crakaUsers).where(
-      sql`"is_premium" = false AND "credits_earned" <= 5 AND "total_referrals" = 0`
+    const all = await db.select().from(crakaUsers);
+    // Ghost = no email, no googleId, no passwordHash, not premium, never referred anyone
+    const ghosts = all.filter(u =>
+      !u.email && !u.googleId && !u.passwordHash &&
+      !u.isPremium && u.totalReferrals === 0
     );
+    let deleted = 0;
     for (const ghost of ghosts) {
       await db.delete(crakaUsers).where(eq(crakaUsers.id, ghost.id));
+      deleted++;
     }
-    res.json({ success: true, deleted: ghosts.length, message: `${ghosts.length} ghost users deleted` });
+    res.json({ success: true, deleted, message: `${deleted} ghost users removed` });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
